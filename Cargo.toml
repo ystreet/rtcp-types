@@ -1,0 +1,12 @@
+[package]
+name = "rtcp-types"
+description = "RTCP packet parser and writers"
+version = "0.0.1"
+authors = ["Matthew Waters <matthew@centricular.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+keywords = ["RTP", "RTCP"]
+categories = ["network-programming", "encoding", "multimedia", "parsing", "multimedia::encoding"]
+documentation = "https://docs.rs/rtcp-types"
+repository = "https://github.com/ystreet/rtcp-types"
+
