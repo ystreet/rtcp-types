@@ -120,7 +120,7 @@ impl<'a> ReportBlock<'a> {
     }
 
     pub fn ssrc(&self) -> u32 {
-        u32_from_be_bytes(self.data)
+        u32_from_be_bytes(self.data[0..4].as_ref())
     }
 
     pub fn fraction_lost(&self) -> u8 {
