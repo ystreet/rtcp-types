@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Errors that can be produced when parsing a RTCP packet
-#[derive(Debug, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum RtcpParseError {
     /// Unsupported version.  This implementation only deals with version 2.
+    #[error("Unsupported version: {}.  This implementation only deals with version 2.", .0)]
     UnsupportedVersion(u8),
     /// The packet was too short to parse
+    #[error("The packet was too short to parse. Expected size: {expected}, actual size encountered: {actual}")]
     Truncated {
         /// The expected size
         expected: usize,
@@ -13,6 +15,7 @@ pub enum RtcpParseError {
         actual: usize,
     },
     /// The packet was too large to parse
+    #[error("The packet was too large to parse. Expected size: {expected}, actual size encountered: {actual}")]
     TooLarge {
         /// The expected size
         expected: usize,
@@ -20,6 +23,7 @@ pub enum RtcpParseError {
         actual: usize,
     },
     /// This implementation does not handle this packet
+    #[error("This implementation does not handle this packet")]
     WrongImplementation,
 }
 

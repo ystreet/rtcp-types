@@ -10,3 +10,6 @@ categories = ["network-programming", "encoding", "multimedia", "parsing", "multi
 documentation = "https://docs.rs/rtcp-types"
 repository = "https://github.com/ystreet/rtcp-types"
 
+[dependencies]
+thiserror = "1"
+
