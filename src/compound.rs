@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{utils::u16_from_be_bytes, RtcpParseError};
+use crate::{utils::parser::*, RtcpPacket, RtcpParseError};
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Unknown<'a> {
     data: &'a [u8],
 }
 
+impl<'a> RtcpPacket for Unknown<'a> {
+    const MIN_PACKET_LEN: usize = 4;
+    const PACKET_TYPE: u8 = 255; // Not used
+}
+
 impl<'a> Unknown<'a> {
     const MIN_PACKET_LEN: usize = 4;
+    const VERSION: u8 = 2;
 
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         if data.len() < Self::MIN_PACKET_LEN {
@@ -16,35 +23,47 @@ impl<'a> Unknown<'a> {
                 actual: data.len(),
             });
         }
-        let ret = Self { data };
-        if ret.version() != 2 {
-            return Err(RtcpParseError::UnsupportedVersion(ret.version()));
-        }
-        Ok(ret)
-    }
 
-    fn padding_bit(&self) -> bool {
-        (self.data[0] & 0x20) != 0
+        let version = parse_version(data);
+        if parse_version(data) != Self::VERSION {
+            return Err(RtcpParseError::UnsupportedVersion(version));
+        }
+
+        let length = parse_length(data);
+        if data.len() < length {
+            return Err(RtcpParseError::Truncated {
+                expected: length,
+                actual: data.len(),
+            });
+        }
+        if data.len() > length {
+            return Err(RtcpParseError::TooLarge {
+                expected: length,
+                actual: data.len(),
+            });
+        }
+
+        Ok(Self { data })
     }
 
     pub fn padding(&self) -> Option<u8> {
-        if self.padding_bit() {
-            Some(self.data[self.data.len() - 1])
-        } else {
-            None
-        }
+        parse_padding(self.data)
     }
 
     pub fn version(&self) -> u8 {
-        self.data[0] >> 6
+        parse_version(self.data)
     }
 
     pub fn type_(&self) -> u8 {
-        self.data[1]
+        parse_packet_type(self.data)
     }
 
-    fn length(&self) -> u16 {
-        u16_from_be_bytes(&self.data[2..4])
+    pub fn length(&self) -> usize {
+        parse_length(self.data)
+    }
+
+    pub fn count(&self) -> u8 {
+        parse_count(self.data)
     }
 
     pub fn data(&self) -> &[u8] {
@@ -84,7 +103,7 @@ impl<'a> Iterator for Compound<'a> {
             Ok(packet) => packet,
             Err(_) => return None,
         };
-        self.offset += (packet.length() as usize + 1) * 4;
+        self.offset += packet.length();
         Some(match packet.type_() {
             crate::App::PACKET_TYPE => crate::App::parse(packet.data)
                 .map(Packet::App)

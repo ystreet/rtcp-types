@@ -4,7 +4,7 @@ use crate::{utils::u32_from_be_bytes, RtcpParseError};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReportBlock<'a> {
-    data: &'a [u8],
+    data: &'a [u8; ReportBlock::EXPECTED_SIZE],
 }
 
 impl<'a> ReportBlock<'a> {
@@ -23,12 +23,13 @@ impl<'a> ReportBlock<'a> {
                 actual: data.len(),
             });
         }
-        let ret = Self { data };
-        Ok(ret)
+        Ok(Self {
+            data: data.try_into().unwrap(),
+        })
     }
 
     pub fn ssrc(&self) -> u32 {
-        u32_from_be_bytes(self.data[0..4].as_ref())
+        u32_from_be_bytes(&self.data[0..4])
     }
 
     pub fn fraction_lost(&self) -> u8 {
@@ -36,23 +37,23 @@ impl<'a> ReportBlock<'a> {
     }
 
     pub fn cumulative_lost(&self) -> u32 {
-        u32_from_be_bytes(self.data[4..8].as_ref()) & 0xffffff
+        u32_from_be_bytes(&self.data[4..8]) & 0xffffff
     }
 
     pub fn extended_sequence_number(&self) -> u32 {
-        u32_from_be_bytes(self.data[8..12].as_ref())
+        u32_from_be_bytes(&self.data[8..12])
     }
 
     pub fn interarrival_jitter(&self) -> u32 {
-        u32_from_be_bytes(self.data[12..16].as_ref())
+        u32_from_be_bytes(&self.data[12..16])
     }
 
     pub fn last_sender_report_timestamp(&self) -> u32 {
-        u32_from_be_bytes(self.data[16..20].as_ref())
+        u32_from_be_bytes(&self.data[16..20])
     }
 
     pub fn delay_since_last_sender_report_timestamp(&self) -> u32 {
-        u32_from_be_bytes(self.data[20..24].as_ref())
+        u32_from_be_bytes(&self.data[20..24])
     }
 }
 

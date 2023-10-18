@@ -1,58 +1,49 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{utils::u32_from_be_bytes, RtcpParseError};
+use crate::{utils::parser::*, RtcpPacket, RtcpParseError};
 
+/// A Parsed App packet.
+#[derive(Debug, PartialEq, Eq)]
 pub struct App<'a> {
     data: &'a [u8],
 }
 
-impl<'a> App<'a> {
+impl<'a> RtcpPacket for App<'a> {
     const MIN_PACKET_LEN: usize = 12;
-    pub(crate) const PACKET_TYPE: u8 = 204;
+    const PACKET_TYPE: u8 = 204;
+}
+
+impl<'a> App<'a> {
+    pub const NAME_LEN: usize = 4;
 
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        if data.len() < Self::MIN_PACKET_LEN {
-            return Err(RtcpParseError::Truncated {
-                expected: Self::MIN_PACKET_LEN,
-                actual: data.len(),
-            });
-        }
-        let ret = Self { data };
-        if ret.version() != 2 {
-            return Err(RtcpParseError::UnsupportedVersion(ret.version()));
-        }
-        if ret.data[1] != Self::PACKET_TYPE {
-            return Err(RtcpParseError::WrongImplementation);
-        }
-        Ok(ret)
-    }
+        check_packet::<Self>(data)?;
 
-    fn padding_bit(&self) -> bool {
-        (self.data[0] & 0x20) != 0
+        Ok(Self { data })
     }
 
     pub fn padding(&self) -> Option<u8> {
-        if self.padding_bit() {
-            Some(self.data[self.data.len() - 1])
-        } else {
-            None
-        }
+        parse_padding(self.data)
     }
 
     pub fn version(&self) -> u8 {
-        self.data[0] >> 6
+        parse_version(self.data)
     }
 
     pub fn subtype(&self) -> u8 {
-        self.data[0] & 0x1f
+        parse_count(self.data)
+    }
+
+    pub fn length(&self) -> usize {
+        parse_length(self.data)
     }
 
     pub fn ssrc(&self) -> u32 {
-        u32_from_be_bytes(&self.data[4..8])
+        parse_ssrc(self.data)
     }
 
-    pub fn name(&self) -> [u8; 4] {
-        self.data[8..12].try_into().unwrap()
+    pub fn name(&self) -> [u8; App::NAME_LEN] {
+        self.data[8..8 + Self::NAME_LEN].try_into().unwrap()
     }
 
     pub fn data(&self) -> &[u8] {

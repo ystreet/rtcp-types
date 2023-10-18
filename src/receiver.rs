@@ -1,67 +1,52 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{utils::u16_from_be_bytes, ReportBlock, RtcpParseError};
+use crate::{utils::parser::*, ReportBlock, RtcpPacket, RtcpParseError};
 
+/// A Parsed Receiver Report packet.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReceiverReport<'a> {
     data: &'a [u8],
 }
 
-impl<'a> ReceiverReport<'a> {
+impl<'a> RtcpPacket for ReceiverReport<'a> {
     const MIN_PACKET_LEN: usize = 8;
-    pub(crate) const PACKET_TYPE: u8 = 201;
+    const PACKET_TYPE: u8 = 201;
+}
 
+impl<'a> ReceiverReport<'a> {
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        if data.len() < Self::MIN_PACKET_LEN {
+        check_packet::<Self>(data)?;
+
+        let req_len =
+            Self::MIN_PACKET_LEN + parse_count(data) as usize * ReportBlock::EXPECTED_SIZE;
+        if req_len < data.len() {
             return Err(RtcpParseError::Truncated {
-                expected: Self::MIN_PACKET_LEN,
+                expected: req_len,
                 actual: data.len(),
             });
         }
-        let ret = Self { data };
-        if ret.version() != 2 {
-            return Err(RtcpParseError::UnsupportedVersion(ret.version()));
-        }
-        if ret.data[1] != Self::PACKET_TYPE {
-            return Err(RtcpParseError::WrongImplementation);
-        }
-        if data.len() < ret.length() {
-            return Err(RtcpParseError::Truncated {
-                expected: ret.length(),
-                actual: data.len(),
-            });
-        }
-        if data.len() > ret.length() {
-            return Err(RtcpParseError::TooLarge {
-                expected: ret.length(),
-                actual: data.len(),
-            });
-        }
-        Ok(ret)
+
+        Ok(Self { data })
     }
 
     pub fn version(&self) -> u8 {
-        self.data[0] >> 6
-    }
-
-    fn padding_bit(&self) -> bool {
-        (self.data[0] & 0x20) != 0
+        parse_version(self.data)
     }
 
     pub fn padding(&self) -> Option<u8> {
-        if self.padding_bit() {
-            Some(self.data[self.data.len() - 1])
-        } else {
-            None
-        }
+        parse_padding(self.data)
     }
 
     pub fn n_records(&self) -> u8 {
-        self.data[0] & 0x1f
+        parse_count(self.data)
     }
 
-    fn length(&self) -> usize {
-        4 * ((u16_from_be_bytes(self.data[2..4].as_ref()) as usize) + 1)
+    pub fn length(&self) -> usize {
+        parse_length(self.data)
+    }
+
+    pub fn ssrc(&self) -> u32 {
+        parse_ssrc(self.data)
     }
 
     pub fn record_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {

@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// A Trait defining RTCP Packet structural data.
+pub trait RtcpPacket {
+    const VERSION: u8 = 2;
+    const MAX_COUNT: u8 = 0x1f;
+    const MIN_PACKET_LEN: usize;
+    const PACKET_TYPE: u8;
+}
+
 /// Errors that can be produced when parsing a RTCP packet
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum RtcpParseError {
@@ -22,6 +30,9 @@ pub enum RtcpParseError {
         /// The actual size encountered
         actual: usize,
     },
+    /// Invalid Padding length 0.
+    #[error("Invalid Padding length 0")]
+    InvalidPadding,
     /// This implementation does not handle this packet
     #[error("This implementation does not handle this packet")]
     WrongImplementation,

@@ -1,50 +1,41 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{utils::u32_from_be_bytes, RtcpParseError};
+use crate::{
+    utils::{pad_to_4bytes, parser::*, u32_from_be_bytes},
+    RtcpPacket, RtcpParseError,
+};
 
+/// A Parsed Sdes packet.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Sdes<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Sdes<'a> {
+impl<'a> RtcpPacket for Sdes<'a> {
     const MIN_PACKET_LEN: usize = 4;
-    pub(crate) const PACKET_TYPE: u8 = 202;
+    const PACKET_TYPE: u8 = 202;
+}
 
+impl<'a> Sdes<'a> {
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        if data.len() < Self::MIN_PACKET_LEN {
-            return Err(RtcpParseError::Truncated {
-                expected: Self::MIN_PACKET_LEN,
-                actual: data.len(),
-            });
-        }
-        let ret = Self { data };
-        if ret.version() != 2 {
-            return Err(RtcpParseError::UnsupportedVersion(ret.version()));
-        }
-        if ret.data[1] != Self::PACKET_TYPE {
-            return Err(RtcpParseError::WrongImplementation);
-        }
-        Ok(ret)
-    }
-
-    fn padding_bit(&self) -> bool {
-        (self.data[0] & 0x20) != 0
+        check_packet::<Self>(data)?;
+        Ok(Self { data })
     }
 
     pub fn padding(&self) -> Option<u8> {
-        if self.padding_bit() {
-            Some(self.data[self.data.len() - 1])
-        } else {
-            None
-        }
+        parse_padding(self.data)
     }
 
     pub fn version(&self) -> u8 {
-        self.data[0] >> 6
+        parse_version(self.data)
     }
 
     pub fn count(&self) -> u8 {
-        self.data[0] & 0x1f
+        parse_count(self.data)
+    }
+
+    pub fn length(&self) -> usize {
+        parse_length(self.data)
     }
 
     pub fn items(&self) -> impl Iterator<Item = SdesItem<'a>> + '_ {
@@ -62,10 +53,6 @@ pub struct SdesItemIter<'a> {
     offset: usize,
     n_items: u8,
     items_i: u8,
-}
-
-fn pad_to_4bytes(num: usize) -> usize {
-    (num + 3) & !3
 }
 
 impl<'a> Iterator for SdesItemIter<'a> {
