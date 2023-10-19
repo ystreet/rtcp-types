@@ -9,6 +9,7 @@ use crate::{
 #[derive(Debug, PartialEq, Eq)]
 pub struct Sdes<'a> {
     data: &'a [u8],
+    chunks: Vec<SdesChunk<'a>>,
 }
 
 impl<'a> RtcpPacket for Sdes<'a> {
@@ -19,7 +20,19 @@ impl<'a> RtcpPacket for Sdes<'a> {
 impl<'a> Sdes<'a> {
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         check_packet::<Self>(data)?;
-        Ok(Self { data })
+
+        let mut chunks = vec![];
+        if data.len() > Self::MIN_PACKET_LEN {
+            let mut offset = Self::MIN_PACKET_LEN;
+
+            while offset < data.len() {
+                let (chunk, end) = SdesChunk::parse(&data[offset..])?;
+                offset += end;
+                chunks.push(chunk);
+            }
+        }
+
+        Ok(Self { data, chunks })
     }
 
     pub fn padding(&self) -> Option<u8> {
@@ -38,38 +51,76 @@ impl<'a> Sdes<'a> {
         parse_length(self.data)
     }
 
-    pub fn items(&self) -> impl Iterator<Item = SdesItem<'a>> + '_ {
-        SdesItemIter {
-            data: &self.data[4..],
-            offset: 0,
-            n_items: self.count(),
-            items_i: 0,
-        }
+    pub fn chunks(&'a self) -> impl Iterator<Item = &'a SdesChunk<'a>> {
+        self.chunks.iter()
     }
 }
 
-pub struct SdesItemIter<'a> {
-    data: &'a [u8],
-    offset: usize,
-    n_items: u8,
-    items_i: u8,
+#[derive(Debug, Eq, PartialEq)]
+pub struct SdesChunk<'a> {
+    ssrc: u32,
+    items: Vec<SdesItem<'a>>,
 }
 
-impl<'a> Iterator for SdesItemIter<'a> {
-    type Item = SdesItem<'a>;
+impl<'a> SdesChunk<'a> {
+    const MIN_LEN: usize = 4;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.items_i >= self.n_items {
-            return None;
+    fn new(ssrc: u32) -> Self {
+        Self {
+            ssrc,
+            items: Vec::new(),
         }
-        match SdesItem::parse(&self.data[self.offset..]) {
-            Ok(item) => {
-                self.offset += pad_to_4bytes(item.length() as usize + 6);
-                self.items_i += 1;
-                Some(item)
+    }
+
+    fn parse(data: &'a [u8]) -> Result<(Self, usize), RtcpParseError> {
+        if data.len() < Self::MIN_LEN {
+            return Err(RtcpParseError::Truncated {
+                expected: Self::MIN_LEN,
+                actual: data.len(),
+            });
+        }
+
+        let mut ret = Self::new(u32_from_be_bytes(&data[0..4]));
+
+        let mut offset = Self::MIN_LEN;
+        if data.len() > Self::MIN_LEN {
+            while offset < data.len() {
+                if data[offset] == 0 {
+                    offset += 1;
+                    break;
+                }
+
+                let (item, end) = SdesItem::parse(&data[offset..])?;
+                offset += end;
+                ret.items.push(item);
             }
-            Err(_) => None,
+
+            while offset < data.len() && data[offset] == 0 {
+                offset += 1;
+            }
         }
+
+        if pad_to_4bytes(offset) != offset {
+            return Err(RtcpParseError::Truncated {
+                expected: pad_to_4bytes(offset),
+                actual: offset,
+            });
+        }
+
+        Ok((ret, offset))
+    }
+
+    pub fn ssrc(&self) -> u32 {
+        self.ssrc
+    }
+
+    pub fn length(&self) -> usize {
+        let len = Self::MIN_LEN + self.items.iter().fold(0, |acc, item| acc + item.length());
+        pad_to_4bytes(len)
+    }
+
+    pub fn items(&'a self) -> impl Iterator<Item = &'a SdesItem<'a>> {
+        self.items.iter()
     }
 }
 
@@ -79,7 +130,8 @@ pub struct SdesItem<'a> {
 }
 
 impl<'a> SdesItem<'a> {
-    const MIN_PACKET_LEN: usize = 8;
+    const MIN_LEN: usize = 4;
+    const VALUE_MAX_LEN: u8 = 255;
     pub const CNAME: u8 = 0x01;
     pub const NAME: u8 = 0x02;
     pub const EMAIL: u8 = 0x03;
@@ -89,43 +141,93 @@ impl<'a> SdesItem<'a> {
     pub const NOTE: u8 = 0x07;
     pub const PRIV: u8 = 0x08;
 
-    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        if data.len() < Self::MIN_PACKET_LEN {
+    fn parse(data: &'a [u8]) -> Result<(Self, usize), RtcpParseError> {
+        if data.len() < Self::MIN_LEN {
             return Err(RtcpParseError::Truncated {
-                expected: Self::MIN_PACKET_LEN,
+                expected: Self::MIN_LEN,
                 actual: data.len(),
             });
         }
-        let ret = Self { data };
-        if ret.length() as usize + 6 > data.len() {
-            return Err(RtcpParseError::Truncated {
-                expected: ret.length() as usize + 6,
-                actual: data.len(),
-            });
-        }
-        if pad_to_4bytes(data.len()) != data.len() {
-            return Err(RtcpParseError::Truncated {
-                expected: pad_to_4bytes(data.len()),
-                actual: data.len(),
-            });
-        }
-        Ok(ret)
-    }
 
-    pub fn ssrc(&self) -> u32 {
-        u32_from_be_bytes(&self.data[0..4])
-    }
+        let length = data[1] as usize;
+        let end = 2 + length;
+        if end > data.len() {
+            return Err(RtcpParseError::Truncated {
+                expected: end,
+                actual: data.len(),
+            });
+        }
 
-    fn length(&self) -> u8 {
-        self.data[5]
+        if length > Self::VALUE_MAX_LEN as usize {
+            return Err(RtcpParseError::SdesValueTooLarge {
+                len: length,
+                max: Self::VALUE_MAX_LEN,
+            });
+        }
+
+        let item = Self { data: &data[..end] };
+
+        if item.type_() == Self::PRIV {
+            let prefix_len = item.priv_prefix_len();
+            let value_offset = item.priv_value_offset();
+
+            if value_offset as usize > data.len() {
+                return Err(RtcpParseError::SdesPrivPrefixTooLarge {
+                    len: prefix_len,
+                    available: length as u8 - 1,
+                });
+            }
+        }
+
+        Ok((item, end))
     }
 
     pub fn type_(&self) -> u8 {
-        self.data[4]
+        self.data[0]
+    }
+
+    pub fn length(&self) -> usize {
+        self.data[1] as usize
     }
 
     pub fn value(&self) -> &[u8] {
-        &self.data[6..6 + self.length() as usize]
+        if self.type_() == Self::PRIV {
+            let offset = self.priv_value_offset() as usize;
+            &self.data[offset..]
+        } else {
+            &self.data[2..]
+        }
+    }
+
+    /// Gets the prefix length of this PRIV SDES Item.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the SDES Iem is no a PRIV.
+    pub fn priv_prefix_len(&self) -> u8 {
+        if self.type_() != Self::PRIV {
+            panic!("Item is not a PRIV");
+        }
+
+        self.data[2]
+    }
+
+    fn priv_value_offset(&self) -> u8 {
+        debug_assert!(self.type_() == Self::PRIV);
+        self.priv_prefix_len() + 3
+    }
+
+    /// Gets the prefix of this PRIV SDES Item.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the SDES Iem is no a PRIV.
+    pub fn priv_prefix(&self) -> &[u8] {
+        if self.type_() != Self::PRIV {
+            panic!("Item is not a PRIV");
+        }
+
+        &self.data[3..3 + self.priv_prefix_len() as usize]
     }
 }
 
@@ -134,11 +236,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_empty_sdes_item() {
-        let item = SdesItem::parse(&[0x00, 0x01, 0x02, 0x03, 0x01, 0x00, 0x00, 0x00]).unwrap();
-        assert_eq!(item.ssrc(), 0x00010203);
+    fn parse_empty_sdes_chunk() {
+        let (chunk, _) =
+            SdesChunk::parse(&[0x00, 0x01, 0x02, 0x03, 0x01, 0x00, 0x00, 0x00]).unwrap();
+        assert_eq!(chunk.ssrc(), 0x00010203);
+
+        let mut items = chunk.items();
+        let item = items.next().unwrap();
         assert_eq!(item.type_(), SdesItem::CNAME);
-        assert_eq!(item.value(), &[]);
+        assert!(item.value().is_empty());
+
+        assert!(items.next().is_none());
     }
 
     #[test]
@@ -147,7 +255,7 @@ mod tests {
         let sdes = Sdes::parse(&data).unwrap();
         assert_eq!(sdes.version(), 2);
         assert_eq!(sdes.count(), 0);
-        assert_eq!(sdes.items().count(), 0);
+        assert_eq!(sdes.chunks().count(), 0);
     }
 
     #[test]
@@ -158,11 +266,99 @@ mod tests {
         let sdes = Sdes::parse(&data).unwrap();
         assert_eq!(sdes.version(), 2);
         assert_eq!(sdes.count(), 1);
-        let mut items = sdes.items();
-        let next = items.next().unwrap();
-        assert_eq!(next.ssrc(), 0x91827364);
-        assert_eq!(next.type_(), SdesItem::CNAME);
-        assert_eq!(next.value(), &[0x30, 0x31]);
-        assert_eq!(items.next(), None);
+
+        let mut chunks = sdes.chunks();
+        let chunk = chunks.next().unwrap();
+        assert_eq!(chunk.ssrc(), 0x91827364);
+
+        let mut items = chunk.items();
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::CNAME);
+        assert_eq!(item.value(), &[0x30, 0x31]);
+
+        assert!(items.next().is_none());
+    }
+
+    #[test]
+    fn parse_cname_name_single_sdes_chunk() {
+        let data = [
+            0x81, 0xca, 0x00, 0x0c, 0x12, 0x34, 0x56, 0x78, 0x01, 0x05, 0x63, 0x6e, 0x61, 0x6d,
+            0x65, 0x02, 0x09, 0x46, 0x72, 0x61, 0x6e, 0xc3, 0xa7, 0x6f, 0x69, 0x73, 0x08, 0x16,
+            0x0b, 0x70, 0x72, 0x69, 0x76, 0x2d, 0x70, 0x72, 0x65, 0x66, 0x69, 0x78, 0x70, 0x72,
+            0x69, 0x76, 0x2d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x00, 0x00,
+        ];
+        let sdes = Sdes::parse(&data).unwrap();
+        assert_eq!(sdes.version(), 2);
+        assert_eq!(sdes.count(), 1);
+
+        let mut chunks = sdes.chunks();
+        let chunk = chunks.next().unwrap();
+        assert_eq!(chunk.ssrc(), 0x12345678);
+
+        let mut items = chunk.items();
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::CNAME);
+        assert_eq!(item.value(), b"cname");
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::NAME);
+        assert_eq!(
+            item.value(),
+            &[0x46, 0x72, 0x61, 0x6e, 0xc3, 0xa7, 0x6f, 0x69, 0x73]
+        );
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::PRIV);
+        assert_eq!(item.priv_prefix(), b"priv-prefix");
+        assert_eq!(item.value(), b"priv-value");
+
+        assert!(items.next().is_none());
+    }
+
+    #[test]
+    fn parse_multiple_sdes_chunks() {
+        let data = [
+            0x82, 0xca, 0x00, 0x0e, 0x12, 0x34, 0x56, 0x78, 0x01, 0x05, 0x63, 0x6e, 0x61, 0x6d,
+            0x65, 0x02, 0x09, 0x46, 0x72, 0x61, 0x6e, 0xc3, 0xa7, 0x6f, 0x69, 0x73, 0x00, 0x00,
+            0x34, 0x56, 0x78, 0x9a, 0x03, 0x09, 0x75, 0x73, 0x65, 0x72, 0x40, 0x68, 0x6f, 0x73,
+            0x74, 0x04, 0x0c, 0x2b, 0x33, 0x33, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33,
+            0x34, 0x00, 0x00, 0x00,
+        ];
+        let sdes = Sdes::parse(&data).unwrap();
+        assert_eq!(sdes.version(), 2);
+        assert_eq!(sdes.count(), 2);
+
+        let mut chunks = sdes.chunks();
+        let chunk = chunks.next().unwrap();
+        assert_eq!(chunk.ssrc(), 0x12345678);
+
+        let mut items = chunk.items();
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::CNAME);
+        assert_eq!(item.value(), b"cname");
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::NAME);
+        assert_eq!(
+            item.value(),
+            &[0x46, 0x72, 0x61, 0x6e, 0xc3, 0xa7, 0x6f, 0x69, 0x73]
+        );
+
+        let chunk = chunks.next().unwrap();
+        assert_eq!(chunk.ssrc(), 0x3456789a);
+
+        let mut items = chunk.items();
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::EMAIL);
+        assert_eq!(item.value(), b"user@host");
+
+        let item = items.next().unwrap();
+        assert_eq!(item.type_(), SdesItem::PHONE);
+        assert_eq!(item.value(), b"+33678901234");
+
+        assert!(items.next().is_none());
     }
 }
