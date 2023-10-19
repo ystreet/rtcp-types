@@ -111,3 +111,47 @@ pub(crate) mod parser {
         super::u32_from_be_bytes(&packet[4..8])
     }
 }
+
+pub(crate) mod writer {
+    use crate::{RtcpPacket, RtcpWriteError};
+
+    #[inline(always)]
+    pub(crate) fn check_padding(padding: u8) -> Result<(), RtcpWriteError> {
+        if padding % 4 != 0 {
+            return Err(RtcpWriteError::InvalidPadding { padding });
+        }
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    pub(crate) fn write_header_unchecked<P: RtcpPacket>(
+        padding: u8,
+        count: u8,
+        buf: &mut [u8],
+    ) -> usize {
+        buf[0] = P::VERSION << 6;
+        if padding > 0 {
+            buf[0] |= 0x20;
+        }
+        buf[0] |= count;
+        buf[1] = P::PACKET_TYPE;
+        let len = buf.len();
+        buf[2..4].copy_from_slice(&((len / 4 - 1) as u16).to_be_bytes());
+
+        4
+    }
+
+    #[inline(always)]
+    pub(crate) fn write_padding_unchecked(padding: u8, buf: &mut [u8]) -> usize {
+        let mut end = 0;
+        if padding > 0 {
+            end += padding as usize;
+
+            buf[0..end - 1].fill(0);
+            buf[end - 1] = padding;
+        }
+
+        end
+    }
+}
