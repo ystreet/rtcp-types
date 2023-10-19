@@ -199,11 +199,15 @@ impl<'a> SdesItem<'a> {
         }
     }
 
+    pub fn get_value_string(&self) -> Result<String, std::string::FromUtf8Error> {
+        String::from_utf8(self.value().into())
+    }
+
     /// Gets the prefix length of this PRIV SDES Item.
     ///
     /// # Panic
     ///
-    /// Panics if the SDES Iem is no a PRIV.
+    /// Panics if the SDES Iem is not a PRIV.
     pub fn priv_prefix_len(&self) -> u8 {
         if self.type_() != Self::PRIV {
             panic!("Item is not a PRIV");
@@ -221,7 +225,7 @@ impl<'a> SdesItem<'a> {
     ///
     /// # Panic
     ///
-    /// Panics if the SDES Iem is no a PRIV.
+    /// Panics if the SDES Iem is not a PRIV.
     pub fn priv_prefix(&self) -> &[u8] {
         if self.type_() != Self::PRIV {
             panic!("Item is not a PRIV");
@@ -300,6 +304,7 @@ mod tests {
         let item = items.next().unwrap();
         assert_eq!(item.type_(), SdesItem::CNAME);
         assert_eq!(item.value(), b"cname");
+        assert_eq!(item.get_value_string().unwrap(), "cname");
 
         let item = items.next().unwrap();
         assert_eq!(item.type_(), SdesItem::NAME);
@@ -307,11 +312,13 @@ mod tests {
             item.value(),
             &[0x46, 0x72, 0x61, 0x6e, 0xc3, 0xa7, 0x6f, 0x69, 0x73]
         );
+        assert_eq!(item.get_value_string().unwrap(), "François");
 
         let item = items.next().unwrap();
         assert_eq!(item.type_(), SdesItem::PRIV);
         assert_eq!(item.priv_prefix(), b"priv-prefix");
         assert_eq!(item.value(), b"priv-value");
+        assert_eq!(item.get_value_string().unwrap(), "priv-value");
 
         assert!(items.next().is_none());
     }

@@ -23,17 +23,6 @@ pub(crate) const fn pad_to_4bytes(num: usize) -> usize {
     (num + 3) & !3
 }
 
-#[inline(always)]
-pub(crate) fn data_to_string(data: &[u8]) -> Result<String, std::string::FromUtf8Error> {
-    String::from_utf8(Vec::from_iter(data.iter().map_while(|&b| {
-        if b == 0 {
-            None
-        } else {
-            Some(b)
-        }
-    })))
-}
-
 pub(crate) mod parser {
     use crate::{RtcpPacket, RtcpParseError};
 

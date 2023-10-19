@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{
-    utils::{data_to_string, parser::*},
-    RtcpPacket, RtcpParseError,
-};
+use crate::{utils::parser::*, RtcpPacket, RtcpParseError};
 
 /// A Parsed App packet.
 #[derive(Debug, PartialEq, Eq)]
@@ -50,7 +47,14 @@ impl<'a> App<'a> {
     }
 
     pub fn get_name_string(&self) -> Result<String, std::string::FromUtf8Error> {
-        data_to_string(&self.name())
+        // name is fixed length potentially zero terminated
+        String::from_utf8(Vec::from_iter(self.name().iter().map_while(|&b| {
+            if b == 0 {
+                None
+            } else {
+                Some(b)
+            }
+        })))
     }
 
     pub fn data(&self) -> &[u8] {

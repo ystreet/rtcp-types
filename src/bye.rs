@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    utils::{data_to_string, parser::*, u32_from_be_bytes},
+    utils::{parser::*, u32_from_be_bytes},
     RtcpPacket, RtcpParseError,
 };
 
@@ -78,7 +78,7 @@ impl<'a> Bye<'a> {
     }
 
     pub fn get_reason_string(&self) -> Option<Result<String, std::string::FromUtf8Error>> {
-        self.reason().map(data_to_string)
+        self.reason().map(|r| String::from_utf8(r.into()))
     }
 }
 
