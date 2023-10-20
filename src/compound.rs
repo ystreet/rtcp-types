@@ -224,10 +224,10 @@ impl<'a> Iterator for Compound<'a> {
 }
 
 pub enum PacketBuilder<'a> {
-    App(crate::app::AppBuilder),
-    Bye(crate::bye::ByeBuilder),
+    App(crate::app::AppBuilder<'a>),
+    Bye(crate::bye::ByeBuilder<'a>),
     Rr(crate::receiver::ReceiverReportBuilder),
-    Sdes(crate::sdes::SdesBuilder),
+    Sdes(crate::sdes::SdesBuilder<'a>),
     Sr(crate::sender::SenderReportBuilder),
     Unknown(UnknownBuilder<'a>),
 }
@@ -270,14 +270,14 @@ impl<'a> PacketBuilder<'a> {
     }
 }
 
-impl<'a> From<crate::app::AppBuilder> for PacketBuilder<'a> {
-    fn from(pb: crate::app::AppBuilder) -> Self {
+impl<'a> From<crate::app::AppBuilder<'a>> for PacketBuilder<'a> {
+    fn from(pb: crate::app::AppBuilder<'a>) -> Self {
         Self::App(pb)
     }
 }
 
-impl<'a> From<crate::bye::ByeBuilder> for PacketBuilder<'a> {
-    fn from(pb: crate::bye::ByeBuilder) -> Self {
+impl<'a> From<crate::bye::ByeBuilder<'a>> for PacketBuilder<'a> {
+    fn from(pb: crate::bye::ByeBuilder<'a>) -> Self {
         Self::Bye(pb)
     }
 }
@@ -288,8 +288,8 @@ impl<'a> From<crate::receiver::ReceiverReportBuilder> for PacketBuilder<'a> {
     }
 }
 
-impl<'a> From<crate::sdes::SdesBuilder> for PacketBuilder<'a> {
-    fn from(pb: crate::sdes::SdesBuilder) -> Self {
+impl<'a> From<crate::sdes::SdesBuilder<'a>> for PacketBuilder<'a> {
+    fn from(pb: crate::sdes::SdesBuilder<'a>) -> Self {
         Self::Sdes(pb)
     }
 }
@@ -382,7 +382,7 @@ mod tests {
         const REQ_LEN: usize = App::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN;
 
         let b = Compound::builder()
-            .add_packet(App::builder(0x91827364))
+            .add_packet(App::builder(0x91827364, "name"))
             .add_packet(Bye::builder());
 
         let mut data = [0; REQ_LEN];
@@ -391,7 +391,7 @@ mod tests {
         assert_eq!(
             data,
             [
-                0x80, 0xcc, 0x00, 0x03, 0x91, 0x82, 0x73, 0x64, 0x00, 0x00, 0x00, 0x00, 0x80, 0xcb,
+                0x80, 0xcc, 0x00, 0x03, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65, 0x80, 0xcb,
                 0x00, 0x00,
             ]
         );
@@ -402,7 +402,7 @@ mod tests {
         const REQ_LEN: usize = App::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN + 4;
 
         let b = Compound::builder()
-            .add_packet(App::builder(0x91827364))
+            .add_packet(App::builder(0x91827364, "name"))
             .add_packet(Bye::builder().padding(4));
 
         let mut data = [0; REQ_LEN];
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(
             data,
             [
-                0x80, 0xcc, 0x00, 0x04, 0x91, 0x82, 0x73, 0x64, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xcb,
+                0x80, 0xcc, 0x00, 0x04, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65, 0xa0, 0xcb,
                 0x00, 0x01, 0x00, 0x00, 0x00, 0x04,
             ]
         );
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn build_app_padding_bye() {
         let b = Compound::builder()
-            .add_packet(App::builder(0x91827364).padding(4))
+            .add_packet(App::builder(0x91827364, "name").padding(4))
             .add_packet(Bye::builder());
 
         let err = b.calculate_size().unwrap_err();

@@ -82,9 +82,9 @@ pub enum RtcpWriteError {
     #[error("App Subtype {subtype} was out of range (max: {max})")]
     AppSubtypeOutOfRange { subtype: u8, max: u8 },
 
-    /// Name length was too large.
-    #[error("Name length {len} was too large (max {max})")]
-    NameLenTooLarge { len: usize, max: u8 },
+    /// APP Packet Name is invalid.  Expecting a sequence of four ASCII characters.
+    #[error("APP Packet Name is invalid.  Expecting a sequence of four ASCII characters.")]
+    InvalidName,
 
     /// Data length must be a mutliple of 32bits.  The data length is returned.
     #[error("Data length must be a mutliple of 32bits. Data len: {}", .0)]

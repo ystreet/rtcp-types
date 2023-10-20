@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::marker::PhantomData;
+
 use crate::{
     utils::{pad_to_4bytes, parser::*, u32_from_be_bytes, writer::*},
     RtcpPacket, RtcpParseError, RtcpWriteError,
@@ -55,7 +57,7 @@ impl<'a> Sdes<'a> {
         self.chunks.iter()
     }
 
-    pub fn builder() -> SdesBuilder {
+    pub fn builder() -> SdesBuilder<'a> {
         SdesBuilder::default()
     }
 }
@@ -127,7 +129,7 @@ impl<'a> SdesChunk<'a> {
         self.items.iter()
     }
 
-    pub fn builder(ssrc: u32) -> SdesChunkBuilder {
+    pub fn builder(ssrc: u32) -> SdesChunkBuilder<'a> {
         SdesChunkBuilder::new(ssrc)
     }
 }
@@ -242,19 +244,20 @@ impl<'a> SdesItem<'a> {
         &self.data[3..3 + self.priv_prefix_len() as usize]
     }
 
-    pub fn builder(type_: u8, value: impl ToString) -> SdesItemBuilder {
+    pub fn builder(type_: u8, value: &'a str) -> SdesItemBuilder<'a> {
         SdesItemBuilder::new(type_, value)
     }
 }
 
 /// SDES packet Builder
 #[derive(Debug, Default)]
-pub struct SdesBuilder {
+pub struct SdesBuilder<'a> {
     padding: u8,
-    chunks: Vec<SdesChunkBuilder>,
+    chunks: Vec<SdesChunkBuilder<'a>>,
+    phantom: PhantomData<&'a SdesChunkBuilder<'a>>,
 }
 
-impl SdesBuilder {
+impl<'a> SdesBuilder<'a> {
     /// Sets the number of padding bytes to use for this App.
     pub fn padding(mut self, padding: u8) -> Self {
         self.padding = padding;
@@ -266,7 +269,7 @@ impl SdesBuilder {
     }
 
     /// Adds the provided [`SdesChunk`].
-    pub fn add_chunk(mut self, chunk: SdesChunkBuilder) -> Self {
+    pub fn add_chunk(mut self, chunk: SdesChunkBuilder<'a>) -> Self {
         self.chunks.push(chunk);
         self
     }
@@ -344,20 +347,22 @@ impl SdesBuilder {
 
 /// SDES Chunk Builder
 #[derive(Debug)]
-pub struct SdesChunkBuilder {
+pub struct SdesChunkBuilder<'a> {
     ssrc: u32,
-    items: Vec<SdesItemBuilder>,
+    items: Vec<SdesItemBuilder<'a>>,
+    phantom: PhantomData<&'a SdesItemBuilder<'a>>,
 }
 
-impl SdesChunkBuilder {
+impl<'a> SdesChunkBuilder<'a> {
     pub fn new(ssrc: u32) -> Self {
         SdesChunkBuilder {
             ssrc,
             items: Vec::new(),
+            phantom: PhantomData,
         }
     }
 
-    pub fn add_item(mut self, item: SdesItemBuilder) -> Self {
+    pub fn add_item(mut self, item: SdesItemBuilder<'a>) -> Self {
         self.items.push(item);
         self
     }
@@ -417,26 +422,26 @@ impl SdesChunkBuilder {
 }
 
 #[derive(Debug)]
-pub struct SdesItemBuilder {
+pub struct SdesItemBuilder<'a> {
     type_: u8,
-    prefix: Option<Vec<u8>>,
-    value: String,
+    prefix: &'a [u8],
+    value: &'a str,
 }
 
-impl SdesItemBuilder {
-    pub fn new(type_: u8, value: impl ToString) -> SdesItemBuilder {
+impl<'a> SdesItemBuilder<'a> {
+    pub fn new(type_: u8, value: &'a str) -> SdesItemBuilder<'a> {
         SdesItemBuilder {
             type_,
-            prefix: None,
-            value: value.to_string(),
+            prefix: &[],
+            value,
         }
     }
 
     /// Adds a prefix to a PRIV SDES Item.
     ///
     /// Has no effect if the type is not `SdesItem::PRIV`.
-    pub fn prefix(mut self, prefix: impl Into<Vec<u8>>) -> Self {
-        self.prefix = Some(prefix.into());
+    pub fn prefix(mut self, prefix: &'a [u8]) -> Self {
+        self.prefix = prefix;
         self
     }
 
@@ -449,7 +454,10 @@ impl SdesItemBuilder {
         let value_len = self.value.as_bytes().len();
 
         if self.type_ == SdesItem::PRIV {
-            let prefix_len = self.prefix.as_ref().map_or(0, |p| p.len());
+            // Note RFC 3550 p. 42 doesn't specify the encoding for the prefix "string".
+            // We decided to allow any byte sequence with compliant length.
+
+            let prefix_len = self.prefix.len();
 
             if prefix_len + 1 > SdesItem::VALUE_MAX_LEN as usize {
                 return Err(RtcpWriteError::SdesPrivPrefixTooLarge {
@@ -494,24 +502,17 @@ impl SdesItemBuilder {
 
         let mut end;
         if self.type_ == SdesItem::PRIV {
-            if let Some(ref prefix) = self.prefix {
-                let prefix_len = prefix.len();
+            let prefix_len = self.prefix.len();
 
-                buf[1] = (prefix_len + 1 + value_len) as u8;
+            buf[1] = (prefix_len + 1 + value_len) as u8;
 
-                buf[2] = prefix_len as u8;
-                end = prefix_len + 3;
-                buf[3..end].copy_from_slice(prefix);
+            buf[2] = prefix_len as u8;
+            end = prefix_len + 3;
+            buf[3..end].copy_from_slice(self.prefix);
 
-                let idx = end;
-                end += value_len;
-                buf[idx..end].copy_from_slice(value);
-            } else {
-                buf[1] = (1 + value_len) as u8;
-                buf[2] = 0; // prefix len
-                end = value_len + 3;
-                buf[3..end].copy_from_slice(value);
-            }
+            let idx = end;
+            end += value_len;
+            buf[idx..end].copy_from_slice(value);
         } else {
             buf[1] = value_len as u8;
             end = value.len() + 2;
@@ -630,7 +631,7 @@ mod tests {
         let chunk1 = SdesChunk::builder(0x12345678)
             .add_item(SdesItem::builder(SdesItem::CNAME, "cname"))
             .add_item(SdesItem::builder(SdesItem::NAME, "François"))
-            .add_item(SdesItem::builder(SdesItem::PRIV, "priv-value").prefix("priv-prefix"));
+            .add_item(SdesItem::builder(SdesItem::PRIV, "priv-value").prefix(b"priv-prefix"));
 
         const REQ_LEN: usize = Sdes::MIN_PACKET_LEN
             + SdesChunk::MIN_LEN
@@ -760,12 +761,9 @@ mod tests {
 
     #[test]
     fn build_item_value_too_large() {
-        let mut value = String::with_capacity(SdesItem::VALUE_MAX_LEN as usize + 1);
-        for _ in 0..SdesItem::VALUE_MAX_LEN as usize + 1 {
-            value.push('a');
-        }
+        let value: String = String::from_utf8([b'a'; SdesItem::VALUE_MAX_LEN as usize + 1].into()).unwrap();
         let b = Sdes::builder()
-            .add_chunk(SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::NAME, value)));
+            .add_chunk(SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::NAME, &value)));
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
             err,
@@ -778,12 +776,9 @@ mod tests {
 
     #[test]
     fn build_priv_item_prefix_too_large() {
-        let mut prefix = String::with_capacity(SdesItem::VALUE_MAX_LEN as usize);
-        for _ in 0..SdesItem::VALUE_MAX_LEN as usize {
-            prefix.push('a');
-        }
+        let prefix = vec![0x01; SdesItem::VALUE_MAX_LEN as usize];
         let b = Sdes::builder().add_chunk(
-            SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::PRIV, "").prefix(prefix)),
+            SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::PRIV, "").prefix(&prefix)),
         );
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
@@ -797,12 +792,9 @@ mod tests {
 
     #[test]
     fn build_priv_item_value_too_large() {
-        let mut value = String::with_capacity(SdesItem::VALUE_MAX_LEN as usize);
-        for _ in 0..SdesItem::VALUE_MAX_LEN as usize {
-            value.push('a');
-        }
+        let value: String = String::from_utf8([b'a'; SdesItem::VALUE_MAX_LEN as usize].into()).unwrap();
         let b = Sdes::builder()
-            .add_chunk(SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::PRIV, value)));
+            .add_chunk(SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::PRIV, &value)));
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
             err,

@@ -84,25 +84,25 @@ impl<'a> Bye<'a> {
         self.reason().map(|r| String::from_utf8(r.into()))
     }
 
-    pub fn builder() -> ByeBuilder {
+    pub fn builder() -> ByeBuilder<'a> {
         ByeBuilder::new()
     }
 }
 
 /// Bye packet Builder
 #[derive(Debug)]
-pub struct ByeBuilder {
+pub struct ByeBuilder<'a> {
     padding: u8,
     sources: Vec<u32>,
-    reason: Vec<u8>,
+    reason: &'a str,
 }
 
-impl ByeBuilder {
+impl<'a> ByeBuilder<'a> {
     fn new() -> Self {
         ByeBuilder {
             padding: 0,
             sources: Vec::with_capacity(Bye::MAX_SOURCES as usize),
-            reason: Vec::with_capacity(Bye::MAX_REASON_LEN as usize),
+            reason: "",
         }
     }
 
@@ -123,14 +123,8 @@ impl ByeBuilder {
     }
 
     /// Sets the reason for this Bye packet.
-    pub fn raw_reason(mut self, reason: impl Into<Vec<u8>>) -> Self {
-        self.reason = reason.into();
-        self
-    }
-
-    /// Sets the reason for this Bye packet.
-    pub fn reason(mut self, reason: impl ToString) -> Self {
-        self.reason = reason.to_string().into();
+    pub fn reason(mut self, reason: &'a str) -> Self {
+        self.reason = reason;
         self
     }
 
@@ -149,20 +143,21 @@ impl ByeBuilder {
             });
         }
 
-        if self.reason.len() > Bye::MAX_REASON_LEN as usize {
-            return Err(RtcpWriteError::ReasonLenTooLarge {
-                len: self.reason.len(),
-                max: Bye::MAX_REASON_LEN,
-            });
-        }
-
         check_padding(self.padding)?;
 
         let mut size = Bye::MIN_PACKET_LEN + 4 * self.sources.len() + self.padding as usize;
 
         if !self.reason.is_empty() {
+            let reason_len = self.reason.as_bytes().len();
+            if reason_len > Bye::MAX_REASON_LEN as usize {
+                return Err(RtcpWriteError::ReasonLenTooLarge {
+                    len: reason_len,
+                    max: Bye::MAX_REASON_LEN,
+                });
+            }
+
             // reason length + data
-            size += 1 + self.reason.len();
+            size += 1 + reason_len;
             // 32bit packet alignment
             size = pad_to_4bytes(size);
         }
@@ -190,10 +185,13 @@ impl ByeBuilder {
         }
 
         if !self.reason.is_empty() {
-            buf[idx] = self.reason.len() as u8;
+            let reason = self.reason.as_bytes();
+            let reason_len = reason.len();
+
+            buf[idx] = reason_len as u8;
             idx += 1;
-            end = idx + self.reason.len();
-            buf[idx..end].copy_from_slice(self.reason.as_slice());
+            end = idx + reason_len;
+            buf[idx..end].copy_from_slice(reason);
             idx = end;
             // 32bit packet alignmant
             end = pad_to_4bytes(end);
@@ -346,7 +344,7 @@ mod tests {
         let byeb = Bye::builder()
             .add_source(0x12345678)
             .add_source(0x3456789a)
-            .raw_reason(REASON.as_bytes());
+            .reason(REASON);
         let req_len = byeb.calculate_size().unwrap();
         assert_eq!(req_len, REQ_LEN);
 
@@ -380,11 +378,8 @@ mod tests {
 
     #[test]
     fn build_reason_too_large() {
-        let mut reason = String::with_capacity(Bye::MAX_REASON_LEN as usize + 1);
-        for _ in 0..Bye::MAX_REASON_LEN as usize + 1 {
-            reason.push('a');
-        }
-        let b = Bye::builder().reason(reason);
+        let reason: String = String::from_utf8([b'a'; Bye::MAX_REASON_LEN as usize + 1].into()).unwrap();
+        let b = Bye::builder().reason(&reason);
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
             err,

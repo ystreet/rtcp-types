@@ -65,29 +65,32 @@ impl<'a> App<'a> {
         &self.data[12..self.data.len() - self.padding().unwrap_or(0) as usize]
     }
 
-    pub fn builder(ssrc: u32) -> AppBuilder {
-        AppBuilder::new(ssrc)
+    /// Constructs an [`AppBuilder`].
+    ///
+    /// `name` must be "a sequence of four ASCII characters".
+    pub fn builder(ssrc: u32, name: &'a str) -> AppBuilder<'a> {
+        AppBuilder::new(ssrc, name)
     }
 }
 
 /// App packet Builder
 #[derive(Debug)]
-pub struct AppBuilder {
+pub struct AppBuilder<'a> {
     ssrc: u32,
     padding: u8,
     subtype: u8,
-    name: Vec<u8>,
-    data: Vec<u8>,
+    name: &'a str,
+    data: &'a [u8],
 }
 
-impl AppBuilder {
-    fn new(ssrc: u32) -> Self {
+impl<'a> AppBuilder<'a> {
+    fn new(ssrc: u32, name: &'a str) -> Self {
         AppBuilder {
             ssrc,
             padding: 0,
             subtype: 0,
-            name: Vec::new(),
-            data: Vec::new(),
+            name,
+            data: &[],
         }
     }
 
@@ -106,18 +109,8 @@ impl AppBuilder {
         self
     }
 
-    pub fn raw_name(mut self, name: impl Into<Vec<u8>>) -> Self {
-        self.name = name.into();
-        self
-    }
-
-    pub fn name(mut self, name: &str) -> Self {
-        self.name = name.as_bytes().into();
-        self
-    }
-
-    pub fn data(mut self, data: impl Into<Vec<u8>>) -> Self {
-        self.data = data.into();
+    pub fn data(mut self, data: &'a [u8]) -> Self {
+        self.data = data;
         self
     }
 
@@ -126,7 +119,7 @@ impl AppBuilder {
     /// Returns an error if:
     ///
     /// * The subtype is out of range.
-    /// * The name len is too large.
+    /// * The name is not a sequence of four ASCII characters.
     /// * The data length is not a multiple of 4.
     /// * The padding is not a multiple of 4.
     #[inline]
@@ -138,20 +131,25 @@ impl AppBuilder {
             });
         }
 
-        if self.name.len() > App::NAME_LEN {
-            return Err(RtcpWriteError::NameLenTooLarge {
-                len: self.name.len(),
-                max: App::NAME_LEN as u8,
-            });
+        // Note: RFC 3550 p. 44 is ambiguous whether the name MUST consists in
+        // 4 non-zero ASCII character or if it could be shorter with the rest
+        // of the 4 bytes filled with 0. We decided to allow filling with 0
+        // for flexility reasons.
+        if self.name.len() > App::NAME_LEN || !self.name.is_ascii() {
+            return Err(RtcpWriteError::InvalidName);
         }
+
+        let mut size = App::MIN_PACKET_LEN + self.padding as usize;
 
         if self.data.len() % 4 != 0 {
             return Err(RtcpWriteError::DataLen32bitMultiple(self.data.len()));
         }
 
+        size += self.data.len();
+
         check_padding(self.padding)?;
 
-        Ok(App::MIN_PACKET_LEN + self.data.len() + self.padding as usize)
+        Ok(size)
     }
 
     /// Writes this App packet specific data into `buf` without any validity checks.
@@ -167,15 +165,17 @@ impl AppBuilder {
 
         buf[4..8].copy_from_slice(&self.ssrc.to_be_bytes());
 
-        let name_len = self.name.len();
+        let name = self.name.as_bytes();
+        let name_len = name.len();
         let mut end = 8 + name_len;
-        buf[8..end].copy_from_slice(&self.name);
+        buf[8..end].copy_from_slice(name);
+        // See note in calculate_size()
         if end < 12 {
             buf[end..12].fill(0);
         }
 
         end = 12 + self.data.len();
-        buf[12..end].copy_from_slice(&self.data);
+        buf[12..end].copy_from_slice(self.data);
 
         end += write_padding_unchecked(self.padding, &mut buf[end..]);
 
@@ -188,7 +188,7 @@ impl AppBuilder {
     ///
     /// * The buffer is too small.
     /// * The subtype is out of range.
-    /// * The name len is too large.
+    /// * The name is not a sequence of four ASCII characters.
     /// * The data length is not a multiple of 4.
     /// * The padding is not a multiple of 4.
     pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
@@ -222,16 +222,17 @@ mod tests {
     #[test]
     fn build_empty_app() {
         const REQ_LEN: usize = App::MIN_PACKET_LEN;
-        let appb = App::builder(0x91827364);
+        let appb = App::builder(0x91827364, "name");
         let req_len = appb.calculate_size().unwrap();
         assert_eq!(req_len, REQ_LEN);
 
         let mut data = [0; REQ_LEN];
         let len = appb.write_into(&mut data).unwrap();
+
         assert_eq!(len, REQ_LEN);
         assert_eq!(
             data,
-            [0x80, 0xcc, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x00, 0x00, 0x00, 0x00]
+            [0x80, 0xcc, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65,]
         );
     }
 
@@ -253,11 +254,10 @@ mod tests {
     #[test]
     fn build_app() {
         const REQ_LEN: usize = App::MIN_PACKET_LEN + 4 + 4;
-        let appb = App::builder(0x91827364)
+        let appb = App::builder(0x91827364, "name")
             .padding(4)
             .subtype(31)
-            .name("abc")
-            .data([0x01, 0x02, 0x3, 0x0]);
+            .data(&[0x01, 0x02, 0x3, 0x0]);
         let req_len = appb.calculate_size().unwrap();
         assert_eq!(req_len, REQ_LEN);
 
@@ -267,18 +267,16 @@ mod tests {
         assert_eq!(
             data,
             [
-                0xbf, 0xcc, 0x00, 0x04, 0x91, 0x82, 0x73, 0x64, 0x61, 0x62, 0x63, 0x00, 0x01, 0x02,
+                0xbf, 0xcc, 0x00, 0x04, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65, 0x01, 0x02,
                 0x03, 0x00, 0x00, 0x00, 0x00, 0x04,
             ]
         );
     }
 
     #[test]
-    fn build_raw_name() {
+    fn build_sort_name() {
         const REQ_LEN: usize = App::MIN_PACKET_LEN;
-        let appb = App::builder(0x91827364)
-            .subtype(31)
-            .raw_name("name".as_bytes());
+        let appb = App::builder(0x91827364, "nam").subtype(31);
         let req_len = appb.calculate_size().unwrap();
         assert_eq!(req_len, REQ_LEN);
 
@@ -287,13 +285,13 @@ mod tests {
         assert_eq!(len, REQ_LEN);
         assert_eq!(
             data,
-            [0x9f, 0xcc, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65,]
+            [0x9f, 0xcc, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x00]
         );
     }
 
     #[test]
     fn build_subtype_out_of_range() {
-        let b = App::builder(0x91827364).subtype(0x1f + 1);
+        let b = App::builder(0x91827364, "name").subtype(0x1f + 1);
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
             err,
@@ -305,28 +303,29 @@ mod tests {
     }
 
     #[test]
-    fn build_name_too_large() {
-        let b = App::builder(0x91827364).name("abcdefghi");
+    fn build_invalid_name_too_large() {
+        let b = App::builder(0x91827364, "name_");
         let err = b.calculate_size().unwrap_err();
-        assert_eq!(
-            err,
-            RtcpWriteError::NameLenTooLarge {
-                len: 9,
-                max: App::NAME_LEN as u8
-            }
-        );
+        assert_eq!(err, RtcpWriteError::InvalidName);
+    }
+
+    #[test]
+    fn build_invalid_non_ascii_name() {
+        let b = App::builder(0x91827364, "nąm");
+        let err = b.calculate_size().unwrap_err();
+        assert_eq!(err, RtcpWriteError::InvalidName);
     }
 
     #[test]
     fn build_data_len_not_32bits_multiple() {
-        let b = App::builder(0x91827364).data([0x01, 0x02, 0x3]);
+        let b = App::builder(0x91827364, "name").data(&[0x01, 0x02, 0x3]);
         let err = b.calculate_size().unwrap_err();
         assert_eq!(err, RtcpWriteError::DataLen32bitMultiple(3));
     }
 
     #[test]
     fn build_padding_not_multiple_4() {
-        let b = App::builder(0x91827364).padding(5);
+        let b = App::builder(0x91827364, "name").padding(5);
         let err = b.calculate_size().unwrap_err();
         assert_eq!(err, RtcpWriteError::InvalidPadding { padding: 5 });
     }
