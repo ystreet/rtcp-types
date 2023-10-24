@@ -155,8 +155,8 @@ mod utils;
 
 pub use app::{App, AppBuilder};
 pub use bye::{Bye, ByeBuilder};
-pub use compound::{Compound, CompoundBuilder, Unknown, UnknownBuilder, Packet, PacketBuilder};
+pub use compound::{Compound, CompoundBuilder, Packet, PacketBuilder, Unknown, UnknownBuilder};
 pub use receiver::{ReceiverReport, ReceiverReportBuilder};
 pub use report_block::{ReportBlock, ReportBlockBuilder};
-pub use sdes::{Sdes, SdesItem, SdesBuilder, SdesItemBuilder, SdesChunk, SdesChunkBuilder};
+pub use sdes::{Sdes, SdesBuilder, SdesChunk, SdesChunkBuilder, SdesItem, SdesItemBuilder};
 pub use sender::{SenderReport, SenderReportBuilder};

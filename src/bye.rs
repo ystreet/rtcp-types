@@ -378,7 +378,8 @@ mod tests {
 
     #[test]
     fn build_reason_too_large() {
-        let reason: String = String::from_utf8([b'a'; Bye::MAX_REASON_LEN as usize + 1].into()).unwrap();
+        let reason: String =
+            String::from_utf8([b'a'; Bye::MAX_REASON_LEN as usize + 1].into()).unwrap();
         let b = Bye::builder().reason(&reason);
         let err = b.calculate_size().unwrap_err();
         assert_eq!(

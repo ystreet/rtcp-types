@@ -274,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    fn build_sort_name() {
+    fn build_short_name() {
         const REQ_LEN: usize = App::MIN_PACKET_LEN;
         let appb = App::builder(0x91827364, "nam").subtype(31);
         let req_len = appb.calculate_size().unwrap();

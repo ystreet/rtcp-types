@@ -761,7 +761,8 @@ mod tests {
 
     #[test]
     fn build_item_value_too_large() {
-        let value: String = String::from_utf8([b'a'; SdesItem::VALUE_MAX_LEN as usize + 1].into()).unwrap();
+        let value: String =
+            String::from_utf8([b'a'; SdesItem::VALUE_MAX_LEN as usize + 1].into()).unwrap();
         let b = Sdes::builder()
             .add_chunk(SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::NAME, &value)));
         let err = b.calculate_size().unwrap_err();
@@ -792,7 +793,8 @@ mod tests {
 
     #[test]
     fn build_priv_item_value_too_large() {
-        let value: String = String::from_utf8([b'a'; SdesItem::VALUE_MAX_LEN as usize].into()).unwrap();
+        let value: String =
+            String::from_utf8([b'a'; SdesItem::VALUE_MAX_LEN as usize].into()).unwrap();
         let b = Sdes::builder()
             .add_chunk(SdesChunk::builder(0).add_item(SdesItem::builder(SdesItem::PRIV, &value)));
         let err = b.calculate_size().unwrap_err();

@@ -16,9 +16,6 @@ impl<'a> RtcpPacket for Unknown<'a> {
 }
 
 impl<'a> Unknown<'a> {
-    const MIN_PACKET_LEN: usize = 4;
-    const VERSION: u8 = 2;
-
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         if data.len() < Self::MIN_PACKET_LEN {
             return Err(RtcpParseError::Truncated {
