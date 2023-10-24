@@ -3,7 +3,8 @@
 use std::marker::PhantomData;
 
 use crate::{
-    utils::{pad_to_4bytes, parser::*, u32_from_be_bytes, writer::*},
+    prelude::*,
+    utils::{pad_to_4bytes, parser, u32_from_be_bytes, writer},
     RtcpPacket, RtcpParseError, RtcpWriteError,
 };
 
@@ -19,9 +20,9 @@ impl<'a> RtcpPacket for Sdes<'a> {
     const PACKET_TYPE: u8 = 202;
 }
 
-impl<'a> Sdes<'a> {
-    pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        check_packet::<Self>(data)?;
+impl<'a> RtcpPacketParser<'a> for Sdes<'a> {
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
+        parser::check_packet::<Self>(data)?;
 
         let mut chunks = vec![];
         if data.len() > Self::MIN_PACKET_LEN {
@@ -37,20 +38,15 @@ impl<'a> Sdes<'a> {
         Ok(Self { data, chunks })
     }
 
+    #[inline(always)]
+    fn header_data(&self) -> [u8; 4] {
+        self.data[..4].try_into().unwrap()
+    }
+}
+
+impl<'a> Sdes<'a> {
     pub fn padding(&self) -> Option<u8> {
-        parse_padding(self.data)
-    }
-
-    pub fn version(&self) -> u8 {
-        parse_version(self.data)
-    }
-
-    pub fn count(&self) -> u8 {
-        parse_count(self.data)
-    }
-
-    pub fn length(&self) -> usize {
-        parse_length(self.data)
+        parser::parse_padding(self.data)
     }
 
     pub fn chunks(&'a self) -> impl Iterator<Item = &'a SdesChunk<'a>> {
@@ -264,22 +260,20 @@ impl<'a> SdesBuilder<'a> {
         self
     }
 
-    pub fn get_padding(&self) -> u8 {
-        self.padding
-    }
-
     /// Adds the provided [`SdesChunk`].
     pub fn add_chunk(mut self, chunk: SdesChunkBuilder<'a>) -> Self {
         self.chunks.push(chunk);
         self
     }
+}
 
+impl<'a> RtcpPacketWriter for SdesBuilder<'a> {
     /// Calculates the size required to write this App packet.
     ///
     /// Returns an error if:
     ///
     /// * An Item presents an invalid size.
-    pub fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
+    fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         if self.chunks.len() > Sdes::MAX_COUNT as usize {
             return Err(RtcpWriteError::TooManySdesChunks {
                 count: self.chunks.len(),
@@ -287,7 +281,7 @@ impl<'a> SdesBuilder<'a> {
             });
         }
 
-        check_padding(self.padding)?;
+        writer::check_padding(self.padding)?;
 
         let mut chunks_size = 0;
         for chunk in self.chunks.iter() {
@@ -305,43 +299,25 @@ impl<'a> SdesBuilder<'a> {
     ///
     /// Panics if the buf is not large enough.
     #[inline]
-    pub(crate) fn write_into_unchecked(mut self, buf: &mut [u8]) -> usize {
-        write_header_unchecked::<Sdes>(self.padding, self.chunks.len() as u8, buf);
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
+        let mut idx =
+            writer::write_header_unchecked::<Sdes>(self.padding, self.chunks.len() as u8, buf);
 
-        let mut idx = 4;
-        for chunk in self.chunks.drain(..) {
+        for chunk in self.chunks.iter() {
             idx += chunk.write_into_unchecked(&mut buf[idx..]);
         }
 
-        idx += write_padding_unchecked(self.padding, &mut buf[idx..]);
+        idx += writer::write_padding_unchecked(self.padding, &mut buf[idx..]);
 
         idx
     }
 
-    /// Writes the SDES packet into `buf`.
-    ///
-    /// Returns an error if:
-    ///
-    /// * The buffer is too small.
-    /// * Too many SDES chunks where added.
-    /// * An Item presents an invalid size.
-    /// * The padding is not a multiple of 4.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let req_size = self.calculate_size()?;
-        if buf.len() < req_size {
-            return Err(RtcpWriteError::OutputTooSmall(req_size));
+    fn get_padding(&self) -> Option<u8> {
+        if self.padding == 0 {
+            return None;
         }
 
-        if self.chunks.len() > Sdes::MAX_COUNT as usize {
-            return Err(RtcpWriteError::TooManySdesChunks {
-                count: self.chunks.len(),
-                max: Sdes::MAX_COUNT,
-            });
-        }
-
-        check_padding(self.padding)?;
-
-        Ok(self.write_into_unchecked(&mut buf[..req_size]))
+        Some(self.padding)
     }
 }
 
@@ -389,11 +365,11 @@ impl<'a> SdesChunkBuilder<'a> {
     ///
     /// Panics if the buf is not large enough.
     #[inline]
-    fn write_into_unchecked(mut self, buf: &mut [u8]) -> usize {
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
         buf[0..4].copy_from_slice(&self.ssrc.to_be_bytes());
 
         let mut idx = 4;
-        for item in self.items.drain(..) {
+        for item in self.items.iter() {
             idx += item.write_into_unchecked(&mut buf[idx..]);
         }
 
@@ -411,7 +387,7 @@ impl<'a> SdesChunkBuilder<'a> {
     ///
     /// * The buffer is too small.
     /// * An Item generated an error.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
+    pub fn write_into(&self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
         let req_size = self.calculate_size()?;
         if buf.len() < req_size {
             return Err(RtcpWriteError::OutputTooSmall(req_size));
@@ -494,7 +470,7 @@ impl<'a> SdesItemBuilder<'a> {
     ///
     /// Panics if the buf is not large enough.
     #[inline]
-    fn write_into_unchecked(self, buf: &mut [u8]) -> usize {
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
         let value = self.value.as_bytes();
         let value_len = value.len();
 
@@ -522,13 +498,13 @@ impl<'a> SdesItemBuilder<'a> {
         end
     }
 
-    /// Writes the SDES Chunk into `buf`.
+    /// Writes the SDES Item into `buf`.
     ///
     /// Returns an error if:
     ///
     /// * The buffer is too small.
     /// * An Item presents an invalid size.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
+    pub fn write_into(&self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
         let req_size = self.calculate_size()?;
         if buf.len() < req_size {
             return Err(RtcpWriteError::OutputTooSmall(req_size));

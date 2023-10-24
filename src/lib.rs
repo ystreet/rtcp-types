@@ -8,6 +8,92 @@ pub trait RtcpPacket {
     const PACKET_TYPE: u8;
 }
 
+/// A Trait to ease the implementation of RTCP Packet parsers.
+///
+/// Implementers only need to return the 4 byte RTCP header
+/// from [`RtcpPacketParser::header_data`] to be able to use
+/// the getters for the common RTCP packet fields.
+pub trait RtcpPacketParser<'a>: RtcpPacket + Sized {
+    /// Parses the provided data.
+    ///
+    /// Returns an instance of `Self` if parsing succeeds,
+    /// an `RtcpParseError` otherwise.
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError>;
+
+    /// Returns the common header for this RTCP packet.
+    fn header_data(&self) -> [u8; 4];
+}
+
+pub trait RtcpPacketParserExt<'a>: RtcpPacketParser<'a> {
+    fn version(&self) -> u8 {
+        utils::parser::parse_version(&self.header_data())
+    }
+
+    fn type_(&self) -> u8 {
+        utils::parser::parse_packet_type(&self.header_data())
+    }
+
+    fn subtype(&self) -> u8 {
+        utils::parser::parse_count(&self.header_data())
+    }
+
+    fn length(&self) -> usize {
+        utils::parser::parse_length(&self.header_data())
+    }
+
+    fn count(&self) -> u8 {
+        utils::parser::parse_count(&self.header_data())
+    }
+}
+
+impl<'a, T: RtcpPacketParser<'a>> RtcpPacketParserExt<'a> for T {}
+
+/// A Trait with base functions needed for RTCP Packet writers.
+///
+/// Note: this trait must remain [object-safe].
+///
+/// [object-safe]: https://doc.rust-lang.org/reference/items/traits.html#object-safety
+pub trait RtcpPacketWriter: std::fmt::Debug {
+    /// Calculates the size required to write this RTCP packet.
+    ///
+    /// Also performs validity checks.
+    fn calculate_size(&self) -> Result<usize, RtcpWriteError>;
+
+    /// Writes this RTCP packet into `buf` without any validity checks.
+    ///
+    /// Uses the length of the buffer for the length field.
+    ///
+    /// Returns the number of bytes written.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the buf is not large enough.
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize;
+
+    /// Gets the padding that was configured for this RTCP packet.
+    fn get_padding(&self) -> Option<u8>;
+}
+
+pub trait RtcpPacketWriterExt: RtcpPacketWriter {
+    /// Writes the Custom packet into `buf`.
+    ///
+    /// The default implementation:
+    ///
+    /// * Calls [`Self::calculate_size`] for validity checks and size calculation.
+    /// * Checks that the provided buffer is large enough to store this RTCP packet.
+    /// * Writes to the provided buffer using [`Self::write_into_unchecked`].
+    fn write_into(&self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
+        let req_size = self.calculate_size()?;
+        if buf.len() < req_size {
+            return Err(RtcpWriteError::OutputTooSmall(req_size));
+        }
+
+        Ok(self.write_into_unchecked(&mut buf[..req_size]))
+    }
+}
+
+impl<T: RtcpPacketWriter> RtcpPacketWriterExt for T {}
+
 /// Errors that can be produced when parsing a RTCP packet
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum RtcpParseError {
@@ -151,7 +237,7 @@ mod receiver;
 mod report_block;
 mod sdes;
 mod sender;
-mod utils;
+pub mod utils;
 
 pub use app::{App, AppBuilder};
 pub use bye::{Bye, ByeBuilder};
@@ -160,3 +246,7 @@ pub use receiver::{ReceiverReport, ReceiverReportBuilder};
 pub use report_block::{ReportBlock, ReportBlockBuilder};
 pub use sdes::{Sdes, SdesBuilder, SdesChunk, SdesChunkBuilder, SdesItem, SdesItemBuilder};
 pub use sender::{SenderReport, SenderReportBuilder};
+
+pub mod prelude {
+    pub use super::{RtcpPacketParser, RtcpPacketParserExt, RtcpPacketWriter, RtcpPacketWriterExt};
+}

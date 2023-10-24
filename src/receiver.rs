@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    utils::{parser::*, writer::*},
+    prelude::*,
+    utils::{parser, writer},
     ReportBlock, ReportBlockBuilder, RtcpPacket, RtcpParseError, RtcpWriteError,
 };
 
@@ -16,14 +17,12 @@ impl<'a> RtcpPacket for ReceiverReport<'a> {
     const PACKET_TYPE: u8 = 201;
 }
 
-impl<'a> ReceiverReport<'a> {
-    const MAX_REPORTS: u8 = Self::MAX_COUNT;
-
-    pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        check_packet::<Self>(data)?;
+impl<'a> RtcpPacketParser<'a> for ReceiverReport<'a> {
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
+        parser::check_packet::<Self>(data)?;
 
         let req_len =
-            Self::MIN_PACKET_LEN + parse_count(data) as usize * ReportBlock::EXPECTED_SIZE;
+            Self::MIN_PACKET_LEN + parser::parse_count(data) as usize * ReportBlock::EXPECTED_SIZE;
         if data.len() < req_len {
             return Err(RtcpParseError::Truncated {
                 expected: req_len,
@@ -34,24 +33,25 @@ impl<'a> ReceiverReport<'a> {
         Ok(Self { data })
     }
 
-    pub fn version(&self) -> u8 {
-        parse_version(self.data)
+    #[inline(always)]
+    fn header_data(&self) -> [u8; 4] {
+        self.data[..4].try_into().unwrap()
     }
+}
+
+impl<'a> ReceiverReport<'a> {
+    const MAX_REPORTS: u8 = Self::MAX_COUNT;
 
     pub fn padding(&self) -> Option<u8> {
-        parse_padding(self.data)
+        parser::parse_padding(self.data)
     }
 
     pub fn n_reports(&self) -> u8 {
-        parse_count(self.data)
-    }
-
-    pub fn length(&self) -> usize {
-        parse_length(self.data)
+        self.count()
     }
 
     pub fn ssrc(&self) -> u32 {
-        parse_ssrc(self.data)
+        parser::parse_ssrc(self.data)
     }
 
     pub fn report_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
@@ -88,16 +88,14 @@ impl ReceiverReportBuilder {
         self
     }
 
-    pub fn get_padding(&self) -> u8 {
-        self.padding
-    }
-
     /// Adds the provided Report Block.
     pub fn add_report_block(mut self, report_block: ReportBlockBuilder) -> Self {
         self.report_blocks.push(report_block);
         self
     }
+}
 
+impl RtcpPacketWriter for ReceiverReportBuilder {
     /// Calculates the size required to write this Receiver Report packet.
     ///
     /// Returns an error if:
@@ -105,7 +103,7 @@ impl ReceiverReportBuilder {
     /// * Too many Report Blocks where added.
     /// * A Report Block is erroneous.
     /// * The padding is not a multiple of 4.
-    pub fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
+    fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         if self.report_blocks.len() > ReceiverReport::MAX_REPORTS as usize {
             return Err(RtcpWriteError::TooManyReportBlocks {
                 count: self.report_blocks.len(),
@@ -113,7 +111,7 @@ impl ReceiverReportBuilder {
             });
         }
 
-        check_padding(self.padding)?;
+        writer::check_padding(self.padding)?;
 
         let mut report_blocks_size = 0;
         for rb in self.report_blocks.iter() {
@@ -132,8 +130,12 @@ impl ReceiverReportBuilder {
     /// # Panic
     ///
     /// Panics if the buf is not large enough.
-    pub(crate) fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
-        write_header_unchecked::<ReceiverReport>(self.padding, self.report_blocks.len() as u8, buf);
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
+        writer::write_header_unchecked::<ReceiverReport>(
+            self.padding,
+            self.report_blocks.len() as u8,
+            buf,
+        );
 
         buf[4..8].copy_from_slice(&self.ssrc.to_be_bytes());
 
@@ -145,26 +147,17 @@ impl ReceiverReportBuilder {
             idx = end;
         }
 
-        end += write_padding_unchecked(self.padding, &mut buf[idx..]);
+        end += writer::write_padding_unchecked(self.padding, &mut buf[idx..]);
 
         end
     }
 
-    /// Writes this Receiver Report into `buf`.
-    ///
-    /// Returns an error if:
-    ///
-    /// * The buffer is too small.
-    /// * Too many Report Blocks where added.
-    /// * A Report Block is erroneous.
-    /// * The padding is not a multiple of 4.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let req_size = self.calculate_size()?;
-        if buf.len() < req_size {
-            return Err(RtcpWriteError::OutputTooSmall(req_size));
+    fn get_padding(&self) -> Option<u8> {
+        if self.padding == 0 {
+            return None;
         }
 
-        Ok(self.write_into_unchecked(&mut buf[..req_size]))
+        Some(self.padding)
     }
 }
 

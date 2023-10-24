@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    utils::{parser::*, writer::*},
+    prelude::*,
+    utils::{parser, writer},
     RtcpPacket, RtcpParseError, RtcpWriteError,
 };
 
@@ -16,34 +17,29 @@ impl<'a> RtcpPacket for App<'a> {
     const PACKET_TYPE: u8 = 204;
 }
 
-impl<'a> App<'a> {
-    const SUBTYPE_MASK: u8 = Self::MAX_COUNT;
-    pub const NAME_LEN: usize = 4;
-
-    pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        check_packet::<Self>(data)?;
+impl<'a> RtcpPacketParser<'a> for App<'a> {
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
+        parser::check_packet::<Self>(data)?;
 
         Ok(Self { data })
     }
 
+    #[inline(always)]
+    fn header_data(&self) -> [u8; 4] {
+        self.data[..4].try_into().unwrap()
+    }
+}
+
+impl<'a> App<'a> {
+    const SUBTYPE_MASK: u8 = Self::MAX_COUNT;
+    pub const NAME_LEN: usize = 4;
+
     pub fn padding(&self) -> Option<u8> {
-        parse_padding(self.data)
-    }
-
-    pub fn version(&self) -> u8 {
-        parse_version(self.data)
-    }
-
-    pub fn subtype(&self) -> u8 {
-        parse_count(self.data)
-    }
-
-    pub fn length(&self) -> usize {
-        parse_length(self.data)
+        parser::parse_padding(self.data)
     }
 
     pub fn ssrc(&self) -> u32 {
-        parse_ssrc(self.data)
+        parser::parse_ssrc(self.data)
     }
 
     pub fn name(&self) -> [u8; App::NAME_LEN] {
@@ -100,10 +96,6 @@ impl<'a> AppBuilder<'a> {
         self
     }
 
-    pub fn get_padding(&self) -> u8 {
-        self.padding
-    }
-
     pub fn subtype(mut self, subtype: u8) -> Self {
         self.subtype = subtype;
         self
@@ -113,7 +105,9 @@ impl<'a> AppBuilder<'a> {
         self.data = data;
         self
     }
+}
 
+impl<'a> RtcpPacketWriter for AppBuilder<'a> {
     /// Calculates the size required to write this App packet.
     ///
     /// Returns an error if:
@@ -123,7 +117,7 @@ impl<'a> AppBuilder<'a> {
     /// * The data length is not a multiple of 4.
     /// * The padding is not a multiple of 4.
     #[inline]
-    pub fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
+    fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         if self.subtype > App::SUBTYPE_MASK {
             return Err(RtcpWriteError::AppSubtypeOutOfRange {
                 subtype: self.subtype,
@@ -147,7 +141,7 @@ impl<'a> AppBuilder<'a> {
 
         size += self.data.len();
 
-        check_padding(self.padding)?;
+        writer::check_padding(self.padding)?;
 
         Ok(size)
     }
@@ -160,8 +154,8 @@ impl<'a> AppBuilder<'a> {
     ///
     /// Panics if the buf is not large enough.
     #[inline]
-    pub(crate) fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
-        write_header_unchecked::<App>(self.padding, self.subtype, buf);
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
+        writer::write_header_unchecked::<App>(self.padding, self.subtype, buf);
 
         buf[4..8].copy_from_slice(&self.ssrc.to_be_bytes());
 
@@ -177,27 +171,17 @@ impl<'a> AppBuilder<'a> {
         end = 12 + self.data.len();
         buf[12..end].copy_from_slice(self.data);
 
-        end += write_padding_unchecked(self.padding, &mut buf[end..]);
+        end += writer::write_padding_unchecked(self.padding, &mut buf[end..]);
 
         end
     }
 
-    /// Writes the App packet into `buf`.
-    ///
-    /// Returns an error if:
-    ///
-    /// * The buffer is too small.
-    /// * The subtype is out of range.
-    /// * The name is not a sequence of four ASCII characters.
-    /// * The data length is not a multiple of 4.
-    /// * The padding is not a multiple of 4.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let req_size = self.calculate_size()?;
-        if buf.len() < req_size {
-            return Err(RtcpWriteError::OutputTooSmall(req_size));
+    fn get_padding(&self) -> Option<u8> {
+        if self.padding == 0 {
+            return None;
         }
 
-        Ok(self.write_into_unchecked(&mut buf[..req_size]))
+        Some(self.padding)
     }
 }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
+    prelude::*,
     utils::{parser::*, writer::*},
     RtcpPacket, RtcpParseError, RtcpWriteError,
 };
@@ -15,8 +16,8 @@ impl<'a> RtcpPacket for Unknown<'a> {
     const PACKET_TYPE: u8 = 255; // Not used
 }
 
-impl<'a> Unknown<'a> {
-    pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
+impl<'a> RtcpPacketParser<'a> for Unknown<'a> {
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         if data.len() < Self::MIN_PACKET_LEN {
             return Err(RtcpParseError::Truncated {
                 expected: Self::MIN_PACKET_LEN,
@@ -46,26 +47,13 @@ impl<'a> Unknown<'a> {
         Ok(Self { data })
     }
 
-    pub fn padding(&self) -> Option<u8> {
-        parse_padding(self.data)
+    #[inline(always)]
+    fn header_data(&self) -> [u8; 4] {
+        self.data[..4].try_into().unwrap()
     }
+}
 
-    pub fn version(&self) -> u8 {
-        parse_version(self.data)
-    }
-
-    pub fn type_(&self) -> u8 {
-        parse_packet_type(self.data)
-    }
-
-    pub fn length(&self) -> usize {
-        parse_length(self.data)
-    }
-
-    pub fn count(&self) -> u8 {
-        parse_count(self.data)
-    }
-
+impl<'a> Unknown<'a> {
     pub fn data(&self) -> &[u8] {
         self.data
     }
@@ -98,15 +86,13 @@ impl<'a> UnknownBuilder<'a> {
         self
     }
 
-    pub fn get_padding(&self) -> u8 {
-        self.padding
-    }
-
     pub fn count(mut self, count: u8) -> Self {
         self.count = count;
         self
     }
+}
 
+impl<'a> RtcpPacketWriter for UnknownBuilder<'a> {
     /// Calculates the size required to write this Unknown packet.
     ///
     /// Returns an error if:
@@ -146,20 +132,12 @@ impl<'a> UnknownBuilder<'a> {
         end
     }
 
-    /// Writes this Unknown packet into `buf`.
-    ///
-    /// Returns an error if:
-    ///
-    /// * The buffer is too small.
-    /// * The count is out of range.
-    /// * The padding is not a multiple of 4.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let req_size = self.calculate_size()?;
-        if buf.len() < req_size {
-            return Err(RtcpWriteError::OutputTooSmall(req_size));
+    fn get_padding(&self) -> Option<u8> {
+        if self.padding == 0 {
+            return None;
         }
 
-        Ok(self.write_into_unchecked(&mut buf[..req_size]))
+        Some(self.padding)
     }
 }
 
@@ -171,6 +149,52 @@ pub enum Packet<'a> {
     Sdes(crate::Sdes<'a>),
     Sr(crate::SenderReport<'a>),
     Unknown(Unknown<'a>),
+}
+
+impl<'a> Packet<'a> {
+    pub fn is_unknown(&self) -> bool {
+        matches!(self, Packet::Unknown(_))
+    }
+}
+
+impl<'a> RtcpPacket for Packet<'a> {
+    const MIN_PACKET_LEN: usize = 4;
+    const PACKET_TYPE: u8 = 255; // Not used
+}
+
+impl<'a> RtcpPacketParser<'a> for Packet<'a> {
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
+        if data.len() < Self::MIN_PACKET_LEN {
+            return Err(RtcpParseError::Truncated {
+                expected: Self::MIN_PACKET_LEN,
+                actual: data.len(),
+            });
+        }
+
+        match parse_packet_type(data) {
+            crate::App::PACKET_TYPE => crate::App::parse(data).map(Packet::App),
+            crate::Bye::PACKET_TYPE => crate::Bye::parse(data).map(Packet::Bye),
+            crate::ReceiverReport::PACKET_TYPE => {
+                crate::ReceiverReport::parse(data).map(Packet::Rr)
+            }
+            crate::Sdes::PACKET_TYPE => crate::Sdes::parse(data).map(Packet::Sdes),
+            crate::SenderReport::PACKET_TYPE => crate::SenderReport::parse(data).map(Packet::Sr),
+            _ => Ok(Packet::Unknown(Unknown::parse(data)?)),
+        }
+    }
+
+    #[inline(always)]
+    fn header_data(&self) -> [u8; 4] {
+        use Packet::*;
+        match self {
+            App(this) => this.header_data(),
+            Bye(this) => this.header_data(),
+            Rr(this) => this.header_data(),
+            Sdes(this) => this.header_data(),
+            Sr(this) => this.header_data(),
+            Unknown(this) => this.header_data(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -227,18 +251,7 @@ impl<'a> Iterator for Compound<'a> {
         // Length conformity checked in `Self::parse`
 
         let packet_length = parse_length(&self.data[self.offset..]);
-        let data = &self.data[self.offset..self.offset + packet_length];
-
-        let res = match parse_packet_type(data) {
-            crate::App::PACKET_TYPE => crate::App::parse(data).map(Packet::App),
-            crate::Bye::PACKET_TYPE => crate::Bye::parse(data).map(Packet::Bye),
-            crate::ReceiverReport::PACKET_TYPE => {
-                crate::ReceiverReport::parse(data).map(Packet::Rr)
-            }
-            crate::Sdes::PACKET_TYPE => crate::Sdes::parse(data).map(Packet::Sdes),
-            crate::SenderReport::PACKET_TYPE => crate::SenderReport::parse(data).map(Packet::Sr),
-            _ => Unknown::parse(data).map(Packet::Unknown),
-        };
+        let res = Packet::parse(&self.data[self.offset..self.offset + packet_length]);
 
         self.is_over = res.is_err();
 
@@ -261,8 +274,8 @@ pub enum PacketBuilder<'a> {
     Unknown(UnknownBuilder<'a>),
 }
 
-impl<'a> PacketBuilder<'a> {
-    pub fn get_padding(&self) -> u8 {
+impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
+    fn get_padding(&self) -> Option<u8> {
         use PacketBuilder::*;
         match self {
             App(this) => this.get_padding(),
@@ -286,7 +299,7 @@ impl<'a> PacketBuilder<'a> {
         }
     }
 
-    fn write_into_unchecked(self, buf: &mut [u8]) -> usize {
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
         use PacketBuilder::*;
         match self {
             App(this) => this.write_into_unchecked(buf),
@@ -337,15 +350,17 @@ impl<'a> From<UnknownBuilder<'a>> for PacketBuilder<'a> {
 
 #[derive(Default, Debug)]
 pub struct CompoundBuilder<'a> {
-    packets: Vec<PacketBuilder<'a>>,
+    packets: Vec<Box<dyn RtcpPacketWriter + 'a>>,
 }
 
 impl<'a> CompoundBuilder<'a> {
-    pub fn add_packet(mut self, packet: impl Into<PacketBuilder<'a>>) -> Self {
-        self.packets.push(packet.into());
+    pub fn add_packet(mut self, packet: impl RtcpPacketWriter + 'a) -> Self {
+        self.packets.push(Box::new(packet));
         self
     }
+}
 
+impl<'a> RtcpPacketWriter for CompoundBuilder<'a> {
     /// Calculates the size required to write this Receiver Report packet.
     ///
     /// Returns an error if:
@@ -353,13 +368,13 @@ impl<'a> CompoundBuilder<'a> {
     /// * A Packet is erroneous.
     /// * A Packet defined a padding
     ///   while it's not the last packet in the Compound.
-    pub fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
+    fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         let mut size = 0;
         let last = self.packets.len().saturating_sub(1);
         for (idx, packet) in self.packets.iter().enumerate() {
             size += packet.calculate_size()?;
 
-            if packet.get_padding() > 0 && idx != last {
+            if packet.get_padding().unwrap_or(0) > 0 && idx != last {
                 return Err(RtcpWriteError::NonLastCompoundPacketPadding);
             }
         }
@@ -367,7 +382,7 @@ impl<'a> CompoundBuilder<'a> {
         Ok(size)
     }
 
-    /// Writes this Compound packet into `buf` without any validity checks.
+    /// Writes this Compound packet into `buf` without prior length checks.
     ///
     /// Uses the length of the buffer for the length field.
     ///
@@ -375,35 +390,19 @@ impl<'a> CompoundBuilder<'a> {
     ///
     /// # Panic
     ///
-    /// Panics if the buf is not large enough.
-    pub fn write_into_unchecked(mut self, buf: &mut [u8]) -> usize {
+    /// Panics if the buf is not large enough or if a packet is invalid.
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
         let mut offset = 0;
-        for packet in self.packets.drain(..) {
-            offset += packet.write_into_unchecked(&mut buf[offset..]);
+        for packet in self.packets.iter() {
+            let req_size = packet.calculate_size().unwrap();
+            offset += packet.write_into_unchecked(&mut buf[offset..offset + req_size]);
         }
 
         offset
     }
 
-    /// Writes this Compound packet into `buf`.
-    ///
-    /// On success returns the number of bytes written or an
-    /// `RtpWriteError` on failure.
-    pub fn write_into(mut self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let mut total_size = 0;
-        let mut offset = 0;
-        for packet in self.packets.drain(..) {
-            let req_size = packet.calculate_size()?;
-            total_size += req_size;
-
-            if buf.len() < total_size {
-                return Err(RtcpWriteError::OutputTooSmall(total_size));
-            }
-
-            offset += packet.write_into_unchecked(&mut buf[offset..offset + req_size]);
-        }
-
-        Ok(offset)
+    fn get_padding(&self) -> Option<u8> {
+        self.packets.last()?.get_padding()
     }
 }
 
@@ -500,6 +499,16 @@ mod tests {
                 0x00, 0x04,
             ]
         );
+    }
+
+    #[test]
+    fn parse_unknown() {
+        let data = [
+            0x80, 0xf2, 0x00, 0x02, 0x12, 0x34, 0x56, 0x78, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let p = Packet::parse(&data).unwrap();
+        assert!(p.is_unknown());
+        assert_eq!(p.type_(), 242);
     }
 
     #[test]

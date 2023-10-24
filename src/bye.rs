@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    utils::{pad_to_4bytes, parser::*, u32_from_be_bytes, writer::*},
-    RtcpPacket, RtcpParseError, RtcpWriteError,
+    prelude::*,
+    utils::{pad_to_4bytes, parser, u32_from_be_bytes, writer},
+    RtcpPacket, RtcpPacketParser, RtcpPacketWriter, RtcpParseError, RtcpWriteError,
 };
 
 /// A Parsed Bye packet.
@@ -16,14 +17,11 @@ impl<'a> RtcpPacket for Bye<'a> {
     const PACKET_TYPE: u8 = 203;
 }
 
-impl<'a> Bye<'a> {
-    const MAX_SOURCES: u8 = Self::MAX_COUNT;
-    const MAX_REASON_LEN: u8 = 0xff;
+impl<'a> RtcpPacketParser<'a> for Bye<'a> {
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
+        parser::check_packet::<Self>(data)?;
 
-    pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        check_packet::<Self>(data)?;
-
-        let reason_len_offset = Self::MIN_PACKET_LEN + 4 * parse_count(data) as usize;
+        let reason_len_offset = Self::MIN_PACKET_LEN + 4 * parser::parse_count(data) as usize;
         if reason_len_offset > data.len() {
             return Err(RtcpParseError::Truncated {
                 expected: reason_len_offset,
@@ -44,20 +42,18 @@ impl<'a> Bye<'a> {
         Ok(Self { data })
     }
 
+    #[inline(always)]
+    fn header_data(&self) -> [u8; 4] {
+        self.data[..4].try_into().unwrap()
+    }
+}
+
+impl<'a> Bye<'a> {
+    const MAX_SOURCES: u8 = Self::MAX_COUNT;
+    const MAX_REASON_LEN: u8 = 0xff;
+
     pub fn padding(&self) -> Option<u8> {
-        parse_padding(self.data)
-    }
-
-    pub fn version(&self) -> u8 {
-        parse_version(self.data)
-    }
-
-    pub fn count(&self) -> u8 {
-        parse_count(self.data)
-    }
-
-    pub fn length(&self) -> usize {
-        parse_length(self.data)
+        parser::parse_padding(self.data)
     }
 
     pub fn ssrcs(&self) -> impl Iterator<Item = u32> + '_ {
@@ -112,10 +108,6 @@ impl<'a> ByeBuilder<'a> {
         self
     }
 
-    pub fn get_padding(&self) -> u8 {
-        self.padding
-    }
-
     /// Attempts to add the provided Source.
     pub fn add_source(mut self, source: u32) -> Self {
         self.sources.push(source);
@@ -127,7 +119,9 @@ impl<'a> ByeBuilder<'a> {
         self.reason = reason;
         self
     }
+}
 
+impl<'a> RtcpPacketWriter for ByeBuilder<'a> {
     /// Calculates the size required to write this Bye packet.
     ///
     /// Returns an error if:
@@ -135,7 +129,7 @@ impl<'a> ByeBuilder<'a> {
     /// * Too many sources where added.
     /// * The length of the reason is out of range.
     /// * The padding is not a multiple of 4.
-    pub fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
+    fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         if self.sources.len() > Bye::MAX_SOURCES as usize {
             return Err(RtcpWriteError::TooManySources {
                 count: self.sources.len(),
@@ -143,7 +137,7 @@ impl<'a> ByeBuilder<'a> {
             });
         }
 
-        check_padding(self.padding)?;
+        writer::check_padding(self.padding)?;
 
         let mut size = Bye::MIN_PACKET_LEN + 4 * self.sources.len() + self.padding as usize;
 
@@ -173,10 +167,10 @@ impl<'a> ByeBuilder<'a> {
     ///
     /// Panics if the buf is not large enough.
     #[inline]
-    pub(crate) fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
-        write_header_unchecked::<Bye>(self.padding, self.sources.len() as u8, buf);
+    fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
+        let mut idx =
+            writer::write_header_unchecked::<Bye>(self.padding, self.sources.len() as u8, buf);
 
-        let mut idx = 4;
         let mut end = idx;
         for ssrc in self.sources.iter() {
             end += 4;
@@ -200,26 +194,17 @@ impl<'a> ByeBuilder<'a> {
             }
         }
 
-        end += write_padding_unchecked(self.padding, &mut buf[idx..]);
+        end += writer::write_padding_unchecked(self.padding, &mut buf[idx..]);
 
         end
     }
 
-    /// Writes this Bye packet into `buf`.
-    ///
-    /// Returns an error if:
-    ///
-    /// * The buffer is too small.
-    /// * Too many sources where added.
-    /// * The length of the reason is out of range.
-    /// * The padding is not a multiple of 4.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let req_size = self.calculate_size()?;
-        if buf.len() < req_size {
-            return Err(RtcpWriteError::OutputTooSmall(req_size));
+    fn get_padding(&self) -> Option<u8> {
+        if self.padding == 0 {
+            return None;
         }
 
-        Ok(self.write_into_unchecked(&mut buf[..req_size]))
+        Some(self.padding)
     }
 }
 
