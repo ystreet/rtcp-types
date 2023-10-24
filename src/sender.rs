@@ -24,7 +24,7 @@ impl<'a> SenderReport<'a> {
 
         let req_len =
             Self::MIN_PACKET_LEN + parse_count(data) as usize * ReportBlock::EXPECTED_SIZE;
-        if req_len < data.len() {
+        if data.len() < req_len {
             return Err(RtcpParseError::Truncated {
                 expected: req_len,
                 actual: data.len(),
@@ -358,6 +358,22 @@ mod tests {
             Err(RtcpParseError::Truncated {
                 expected: 28,
                 actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn parse_sr_too_short_for_report_count() {
+        assert_eq!(
+            SenderReport::parse(&[
+                0x82, 0xc8, 0x00, 0x12, 0x91, 0x82, 0x73, 0x64, 0x89, 0xab, 0xcd, 0xef, 0x02, 0x24,
+                0x46, 0x68, 0x8a, 0xac, 0xce, 0xe0, 0xf1, 0xe2, 0xd3, 0xc4, 0xb5, 0xa6, 0x97, 0x88,
+                0x01, 0x23, 0x45, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+            ]),
+            Err(RtcpParseError::Truncated {
+                expected: 76,
+                actual: 53
             })
         );
     }
