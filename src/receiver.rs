@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// A Parsed Receiver Report packet.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReceiverReport<'a> {
     data: &'a [u8],
 }

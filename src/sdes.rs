@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// A Parsed Sdes packet.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sdes<'a> {
     data: &'a [u8],
     chunks: Vec<SdesChunk<'a>>,
@@ -58,7 +58,7 @@ impl<'a> Sdes<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SdesChunk<'a> {
     ssrc: u32,
     items: Vec<SdesItem<'a>>,
@@ -130,7 +130,7 @@ impl<'a> SdesChunk<'a> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SdesItem<'a> {
     data: &'a [u8],
 }

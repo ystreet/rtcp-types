@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// A Parsed Bye packet.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Bye<'a> {
     data: &'a [u8],
 }

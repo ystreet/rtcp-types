@@ -1,7 +1,7 @@
 use rtcp_types::{
     prelude::*,
     utils::{parser, writer},
-    Packet, RtcpPacket, RtcpParseError, RtcpWriteError,
+    Packet, RtcpPacket, RtcpParseError, RtcpWriteError, Unknown,
 };
 
 /// A Parsed Custom packet.
@@ -127,6 +127,28 @@ impl RtcpPacketWriter for CustomBuilder {
     }
 }
 
+impl<'a> TryFrom<&'a Unknown<'a>> for Custom<'a> {
+    type Error = RtcpParseError;
+
+    fn try_from(u: &'a Unknown<'a>) -> Result<Self, Self::Error> {
+        Custom::parse(u.data())
+    }
+}
+
+impl<'a> TryFrom<&'a Packet<'a>> for Custom<'a> {
+    type Error = RtcpParseError;
+
+    fn try_from(p: &'a Packet<'a>) -> Result<Self, Self::Error> {
+        match p {
+            Packet::Unknown(p) => Self::try_from(p),
+            _ => Err(RtcpParseError::PacketTypeMismatch {
+                actual: p.type_(),
+                requested: Custom::PACKET_TYPE,
+            }),
+        }
+    }
+}
+
 #[test]
 fn test_parse() {
     let data = [
@@ -162,10 +184,13 @@ fn test_parse_generic_packet() {
     assert!(p.is_unknown());
     assert_eq!(p.type_(), Custom::PACKET_TYPE);
 
+    let custom = p.try_as::<Custom>().unwrap();
+    assert_eq!(custom.ssrc(), 0x12345678);
+
     let Packet::Unknown(unknown) = p else {
         unreachable!()
     };
-    let custom = Custom::parse(unknown.data()).unwrap();
+    let custom = unknown.try_as::<Custom>().unwrap();
     assert_eq!(custom.ssrc(), 0x12345678);
 }
 
@@ -185,10 +210,13 @@ fn test_parse_compound() {
     assert!(p.is_unknown());
     assert_eq!(p.type_(), Custom::PACKET_TYPE);
 
+    let custom = p.try_as::<Custom>().unwrap();
+    assert_eq!(custom.ssrc(), 0x12345678);
+
     let Packet::Unknown(unknown) = p else {
         unreachable!()
     };
-    let custom = Custom::parse(unknown.data()).unwrap();
+    let custom = unknown.try_as::<Custom>().unwrap();
     assert_eq!(custom.ssrc(), 0x12345678);
 
     assert!(compound.next().is_none());

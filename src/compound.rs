@@ -58,6 +58,14 @@ impl<'a> Unknown<'a> {
         self.data
     }
 
+    pub fn try_as<P>(&'a self) -> Result<P, RtcpParseError>
+    where
+        P: RtcpPacket,
+        P: TryFrom<&'a Self, Error = RtcpParseError>,
+    {
+        TryFrom::try_from(self)
+    }
+
     pub fn builder(type_: u8, data: &'a [u8]) -> UnknownBuilder<'a> {
         UnknownBuilder::new(type_, data)
     }
@@ -197,6 +205,16 @@ impl<'a> RtcpPacketParser<'a> for Packet<'a> {
     }
 }
 
+impl<'a> Packet<'a> {
+    pub fn try_as<P>(&'a self) -> Result<P, RtcpParseError>
+    where
+        P: RtcpPacket,
+        P: TryFrom<&'a Self, Error = RtcpParseError>,
+    {
+        TryFrom::try_from(self)
+    }
+}
+
 #[derive(Debug)]
 pub struct Compound<'a> {
     data: &'a [u8],
@@ -312,42 +330,6 @@ impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
     }
 }
 
-impl<'a> From<crate::app::AppBuilder<'a>> for PacketBuilder<'a> {
-    fn from(pb: crate::app::AppBuilder<'a>) -> Self {
-        Self::App(pb)
-    }
-}
-
-impl<'a> From<crate::bye::ByeBuilder<'a>> for PacketBuilder<'a> {
-    fn from(pb: crate::bye::ByeBuilder<'a>) -> Self {
-        Self::Bye(pb)
-    }
-}
-
-impl<'a> From<crate::receiver::ReceiverReportBuilder> for PacketBuilder<'a> {
-    fn from(pb: crate::receiver::ReceiverReportBuilder) -> Self {
-        Self::Rr(pb)
-    }
-}
-
-impl<'a> From<crate::sdes::SdesBuilder<'a>> for PacketBuilder<'a> {
-    fn from(pb: crate::sdes::SdesBuilder<'a>) -> Self {
-        Self::Sdes(pb)
-    }
-}
-
-impl<'a> From<crate::sender::SenderReportBuilder> for PacketBuilder<'a> {
-    fn from(pb: crate::sender::SenderReportBuilder) -> Self {
-        Self::Sr(pb)
-    }
-}
-
-impl<'a> From<UnknownBuilder<'a>> for PacketBuilder<'a> {
-    fn from(pb: UnknownBuilder<'a>) -> Self {
-        Self::Unknown(pb)
-    }
-}
-
 #[derive(Default, Debug)]
 pub struct CompoundBuilder<'a> {
     packets: Vec<Box<dyn RtcpPacketWriter + 'a>>,
@@ -403,6 +385,94 @@ impl<'a> RtcpPacketWriter for CompoundBuilder<'a> {
 
     fn get_padding(&self) -> Option<u8> {
         self.packets.last()?.get_padding()
+    }
+}
+
+macro_rules! impl_try_from {
+    ($parser:ty, $builder:ty, $variant:ident) => {
+        impl<'a> TryFrom<Unknown<'a>> for $parser {
+            type Error = RtcpParseError;
+
+            fn try_from(p: Unknown<'a>) -> Result<Self, Self::Error> {
+                <$parser>::parse(p.data)
+            }
+        }
+
+        impl<'a> TryFrom<&'a Unknown<'a>> for $parser {
+            type Error = RtcpParseError;
+
+            fn try_from(p: &'a Unknown<'a>) -> Result<Self, Self::Error> {
+                <$parser>::parse(p.data)
+            }
+        }
+
+        impl<'a> TryFrom<Packet<'a>> for $parser {
+            type Error = RtcpParseError;
+
+            fn try_from(p: Packet<'a>) -> Result<Self, Self::Error> {
+                match p {
+                    Packet::$variant(this) => Ok(this),
+                    Packet::Unknown(p) => Self::try_from(p),
+                    _ => Err(RtcpParseError::PacketTypeMismatch {
+                        actual: p.type_(),
+                        requested: <$parser>::PACKET_TYPE,
+                    }),
+                }
+            }
+        }
+
+        impl<'a> TryFrom<&'a Packet<'a>> for $parser {
+            type Error = RtcpParseError;
+
+            fn try_from(p: &'a Packet<'a>) -> Result<Self, Self::Error> {
+                match p {
+                    Packet::$variant(this) => Ok(this.clone()),
+                    Packet::Unknown(p) => Self::try_from(p),
+                    _ => Err(RtcpParseError::PacketTypeMismatch {
+                        actual: p.type_(),
+                        requested: <$parser>::PACKET_TYPE,
+                    }),
+                }
+            }
+        }
+
+        impl<'a> From<$parser> for Packet<'a> {
+            fn from(p: $parser) -> Self {
+                Packet::$variant(p)
+            }
+        }
+
+        impl<'a> From<$builder> for PacketBuilder<'a> {
+            fn from(pb: $builder) -> Self {
+                Self::$variant(pb)
+            }
+        }
+    };
+}
+
+impl_try_from!(crate::app::App<'a>, crate::app::AppBuilder<'a>, App);
+impl_try_from!(crate::bye::Bye<'a>, crate::bye::ByeBuilder<'a>, Bye);
+impl_try_from!(crate::sdes::Sdes<'a>, crate::sdes::SdesBuilder<'a>, Sdes);
+impl_try_from!(
+    crate::receiver::ReceiverReport<'a>,
+    crate::receiver::ReceiverReportBuilder,
+    Rr
+);
+impl_try_from!(
+    crate::sender::SenderReport<'a>,
+    crate::sender::SenderReportBuilder,
+    Sr
+);
+
+impl<'a> From<Unknown<'a>> for Packet<'a> {
+    fn from(p: Unknown<'a>) -> Self {
+        Packet::Unknown(p)
+    }
+}
+
+impl<'a> From<UnknownBuilder<'a>> for PacketBuilder<'a> {
+    fn from(pb: UnknownBuilder<'a>) -> Self {
+        Self::Unknown(pb)
     }
 }
 
@@ -569,5 +639,29 @@ mod tests {
         );
 
         assert!(compound.next().is_none());
+    }
+
+    #[test]
+    fn parse_packet_try_as_app() {
+        let data = [
+            0x80, 0xcc, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65,
+        ];
+        let packet = Packet::parse(&data).unwrap();
+
+        let app = packet.try_as::<crate::App>().unwrap();
+        assert_eq!(app.name(), "name".as_bytes());
+
+        matches!(packet, Packet::App(_));
+    }
+
+    #[test]
+    fn parse_unknown_try_as_bye() {
+        let data = [0x81, 0xcb, 0x00, 0x01, 0x12, 0x34, 0x56, 0x78];
+        let unknown = Unknown::parse(&data).unwrap();
+
+        let bye = unknown.try_as::<crate::Bye>().unwrap();
+        let mut ssrcs = bye.ssrcs();
+        let ssrc = ssrcs.next().unwrap();
+        assert_eq!(ssrc, 0x12345678);
     }
 }

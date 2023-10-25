@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// A Parsed App packet.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct App<'a> {
     data: &'a [u8],
 }

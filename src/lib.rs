@@ -150,6 +150,10 @@ pub enum RtcpParseError {
     /// This implementation does not handle this packet
     #[error("This implementation does not handle this packet")]
     WrongImplementation,
+
+    /// RTCP Packet type mismatch.
+    #[error("RTCP Packet type mismatch. Actual: {actual}, requested {requested}")]
+    PacketTypeMismatch { actual: u8, requested: u8 },
 }
 
 /// Errors produced when writing a packet

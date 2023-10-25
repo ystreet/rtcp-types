@@ -44,7 +44,10 @@ pub mod parser {
         }
 
         if parse_packet_type(packet) != P::PACKET_TYPE {
-            return Err(RtcpParseError::WrongImplementation);
+            return Err(RtcpParseError::PacketTypeMismatch {
+                actual: parse_packet_type(packet),
+                requested: P::PACKET_TYPE,
+            });
         }
 
         let length = parse_length(packet);
