@@ -70,7 +70,7 @@ impl<'a> SenderReport<'a> {
         u32_from_be_bytes(&self.data[24..28])
     }
 
-    pub fn reports_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
+    pub fn report_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
         self.data[8..8 + (self.n_reports() as usize * 24)]
             .chunks_exact(24)
             .map(|b| ReportBlock::parse(b).unwrap())
@@ -90,7 +90,7 @@ pub struct SenderReportBuilder {
     rtp_timestamp: u32,
     packet_count: u32,
     octet_count: u32,
-    reports_blocks: Vec<ReportBlockBuilder>,
+    report_blocks: Vec<ReportBlockBuilder>,
 }
 
 impl SenderReportBuilder {
@@ -102,7 +102,7 @@ impl SenderReportBuilder {
             rtp_timestamp: 0,
             packet_count: 0,
             octet_count: 0,
-            reports_blocks: Vec::with_capacity(SenderReport::MAX_REPORTS as usize),
+            report_blocks: Vec::with_capacity(SenderReport::MAX_REPORTS as usize),
         }
     }
 
@@ -141,8 +141,8 @@ impl SenderReportBuilder {
     }
 
     /// Adds the provided Report Block.
-    pub fn add_reports_block(mut self, report_block: ReportBlockBuilder) -> Self {
-        self.reports_blocks.push(report_block);
+    pub fn add_report_block(mut self, report_block: ReportBlockBuilder) -> Self {
+        self.report_blocks.push(report_block);
         self
     }
 
@@ -154,9 +154,9 @@ impl SenderReportBuilder {
     /// * A Report Block is erroneous.
     /// * The padding is not a multiple of 4.
     pub fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
-        if self.reports_blocks.len() > SenderReport::MAX_REPORTS as usize {
+        if self.report_blocks.len() > SenderReport::MAX_REPORTS as usize {
             return Err(RtcpWriteError::TooManyReportBlocks {
-                count: self.reports_blocks.len(),
+                count: self.report_blocks.len(),
                 max: SenderReport::MAX_REPORTS,
             });
         }
@@ -164,7 +164,7 @@ impl SenderReportBuilder {
         check_padding(self.padding)?;
 
         let mut report_blocks_size = 0;
-        for rb in self.reports_blocks.iter() {
+        for rb in self.report_blocks.iter() {
             report_blocks_size += rb.calculate_size()?;
         }
 
@@ -182,7 +182,7 @@ impl SenderReportBuilder {
     /// Panics if the buf is not large enough.
     #[inline]
     pub(crate) fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
-        write_header_unchecked::<SenderReport>(self.padding, self.reports_blocks.len() as u8, buf);
+        write_header_unchecked::<SenderReport>(self.padding, self.report_blocks.len() as u8, buf);
 
         buf[4..8].copy_from_slice(&self.ssrc.to_be_bytes());
         buf[8..16].copy_from_slice(&self.ntp_timestamp.to_be_bytes());
@@ -192,7 +192,7 @@ impl SenderReportBuilder {
 
         let mut idx = 28;
         let mut end = idx;
-        for report_block in self.reports_blocks.iter() {
+        for report_block in self.report_blocks.iter() {
             end += ReportBlock::EXPECTED_SIZE;
             report_block.write_into_unchecked(&mut buf[idx..end]);
             idx = end;
@@ -217,9 +217,9 @@ impl SenderReportBuilder {
             return Err(RtcpWriteError::OutputTooSmall(req_size));
         }
 
-        if self.reports_blocks.len() == SenderReport::MAX_REPORTS as usize {
+        if self.report_blocks.len() == SenderReport::MAX_REPORTS as usize {
             return Err(RtcpWriteError::TooManyReportBlocks {
-                count: self.reports_blocks.len(),
+                count: self.report_blocks.len(),
                 max: SenderReport::MAX_REPORTS,
             });
         }
@@ -297,8 +297,8 @@ mod tests {
             .rtp_timestamp(0x8aaccee0)
             .packet_count(0xf1e2d3c4)
             .octet_count(0xb5a69788)
-            .add_reports_block(rb1)
-            .add_reports_block(rb2);
+            .add_report_block(rb1)
+            .add_report_block(rb2);
 
         let req_len = srb.calculate_size().unwrap();
         assert_eq!(req_len, REQ_LEN);
@@ -329,8 +329,8 @@ mod tests {
             SenderReport::MIN_PACKET_LEN + ReportBlock::EXPECTED_SIZE * 2 + PADDING;
         let srb = SenderReport::builder(0x91827364)
             .padding(PADDING as u8)
-            .add_reports_block(rb1)
-            .add_reports_block(rb2);
+            .add_report_block(rb1)
+            .add_report_block(rb2);
 
         let req_len = srb.calculate_size().unwrap();
         assert_eq!(req_len, REQ_LEN);
@@ -366,7 +366,7 @@ mod tests {
     fn build_too_many_report_blocks() {
         let mut b = SenderReport::builder(0);
         for _ in 0..SenderReport::MAX_REPORTS as usize + 1 {
-            b = b.add_reports_block(ReportBlock::builder(1));
+            b = b.add_report_block(ReportBlock::builder(1));
         }
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn build_erroneous_report() {
         let b = SenderReport::builder(0)
-            .add_reports_block(ReportBlock::builder(1).cumulative_lost(0xffffff + 1));
+            .add_report_block(ReportBlock::builder(1).cumulative_lost(0xffffff + 1));
         let err = b.calculate_size().unwrap_err();
         assert_eq!(
             err,
