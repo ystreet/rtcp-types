@@ -171,6 +171,7 @@ pub enum Packet<'a> {
     Unknown(Unknown<'a>),
 }
 
+#[derive(Debug)]
 pub struct Compound<'a> {
     data: &'a [u8],
     offset: usize,
@@ -194,7 +195,18 @@ impl<'a> Iterator for Compound<'a> {
         if self.offset >= self.data.len() {
             return None;
         }
-        let packet = match Unknown::parse(&self.data[self.offset..]) {
+
+        if self.data.len() < self.offset + Unknown::MIN_PACKET_LEN {
+            return None;
+        }
+
+        let data = &self.data[self.offset..];
+        let length = parse_length(data);
+        if data.len() < length {
+            return None;
+        }
+
+        let packet = match Unknown::parse(&data[..length]) {
             Ok(packet) => packet,
             Err(_) => return None,
         };
@@ -344,7 +356,7 @@ impl<'a> CompoundBuilder<'a> {
     /// # Panic
     ///
     /// Panics if the buf is not large enough.
-    pub(crate) fn write_into_unchecked(mut self, buf: &mut [u8]) -> usize {
+    pub fn write_into_unchecked(mut self, buf: &mut [u8]) -> usize {
         let mut offset = 0;
         for packet in self.packets.drain(..) {
             offset += packet.write_into_unchecked(&mut buf[offset..]);
@@ -357,29 +369,84 @@ impl<'a> CompoundBuilder<'a> {
     ///
     /// On success returns the number of bytes written or an
     /// `RtpWriteError` on failure.
-    pub fn write_into(self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
-        let req_size = self.calculate_size()?;
-        if buf.len() < req_size {
-            return Err(RtcpWriteError::OutputTooSmall(req_size));
+    pub fn write_into(mut self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
+        let mut total_size = 0;
+        let mut offset = 0;
+        for packet in self.packets.drain(..) {
+            let req_size = packet.calculate_size()?;
+            total_size += req_size;
+
+            if buf.len() < total_size {
+                return Err(RtcpWriteError::OutputTooSmall(total_size));
+            }
+
+            offset += packet.write_into_unchecked(&mut buf[offset..offset + req_size]);
         }
 
-        Ok(self.write_into_unchecked(buf))
+        Ok(offset)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{App, Bye};
+    use crate::{App, Bye, ReceiverReport, SenderReport};
 
     #[test]
-    fn build_app_bye() {
-        use crate::{App, Bye};
+    fn parse_rr_bye() {
+        let data = [
+            0x80, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0x80, 0xcb, 0x00, 0x00,
+        ];
+        let mut compound = Compound::parse(&data).unwrap();
+        let packet = compound.next().unwrap();
+        matches!(packet, Packet::Rr(_));
 
-        const REQ_LEN: usize = App::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN;
+        let packet = compound.next().unwrap();
+        matches!(packet, Packet::Bye(_));
+
+        assert!(compound.next().is_none());
+    }
+
+    #[test]
+    fn build_rr_bye() {
+        const REQ_LEN: usize = ReceiverReport::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN;
 
         let b = Compound::builder()
-            .add_packet(App::builder(0x91827364, "name"))
+            .add_packet(ReceiverReport::builder(0x1234567))
+            .add_packet(Bye::builder());
+
+        let mut data = [0; REQ_LEN];
+        let len = b.write_into(&mut data).unwrap();
+        assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [0x80, 0xc9, 0x00, 0x01, 0x01, 0x23, 0x45, 0x67, 0x80, 0xcb, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn parse_sr_bye() {
+        let data = [
+            0x82, 0xc8, 0x00, 0x06, 0x91, 0x82, 0x73, 0x64, 0x89, 0xab, 0xcd, 0xef, 0x02, 0x24,
+            0x46, 0x68, 0x8a, 0xac, 0xce, 0xe0, 0xf1, 0xe2, 0xd3, 0xc4, 0xb5, 0xa6, 0x97, 0x88,
+            0x80, 0xcb, 0x00, 0x00,
+        ];
+        let mut compound = Compound::parse(&data).unwrap();
+        let packet = compound.next().unwrap();
+        matches!(packet, Packet::Sr(_));
+
+        let packet = compound.next().unwrap();
+        matches!(packet, Packet::Bye(_));
+
+        assert!(compound.next().is_none());
+    }
+
+    #[test]
+    fn build_sr_bye() {
+        const REQ_LEN: usize = SenderReport::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN;
+
+        let b = Compound::builder()
+            .add_packet(SenderReport::builder(0x1234567))
             .add_packet(Bye::builder());
 
         let mut data = [0; REQ_LEN];
@@ -388,18 +455,19 @@ mod tests {
         assert_eq!(
             data,
             [
-                0x80, 0xcc, 0x00, 0x03, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65, 0x80, 0xcb,
-                0x00, 0x00,
+                0x80, 0xc8, 0x00, 0x06, 0x01, 0x23, 0x45, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x80, 0xcb, 0x00, 0x00,
             ]
         );
     }
 
     #[test]
-    fn build_app_bye_padding() {
-        const REQ_LEN: usize = App::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN + 4;
+    fn build_rr_bye_padding() {
+        const REQ_LEN: usize = ReceiverReport::MIN_PACKET_LEN + Bye::MIN_PACKET_LEN + 4;
 
         let b = Compound::builder()
-            .add_packet(App::builder(0x91827364, "name"))
+            .add_packet(ReceiverReport::builder(0x1234567))
             .add_packet(Bye::builder().padding(4));
 
         let mut data = [0; REQ_LEN];
@@ -408,8 +476,8 @@ mod tests {
         assert_eq!(
             data,
             [
-                0x80, 0xcc, 0x00, 0x04, 0x91, 0x82, 0x73, 0x64, 0x6e, 0x61, 0x6d, 0x65, 0xa0, 0xcb,
-                0x00, 0x01, 0x00, 0x00, 0x00, 0x04,
+                0x80, 0xc9, 0x00, 0x01, 0x01, 0x23, 0x45, 0x67, 0xa0, 0xcb, 0x00, 0x01, 0x00, 0x00,
+                0x00, 0x04,
             ]
         );
     }
