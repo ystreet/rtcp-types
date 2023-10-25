@@ -153,10 +153,10 @@ mod sdes;
 mod sender;
 mod utils;
 
-pub use app::App;
-pub use bye::Bye;
-pub use compound::{Compound, Unknown};
-pub use receiver::ReceiverReport;
+pub use app::{App, AppBuilder};
+pub use bye::{Bye, ByeBuilder};
+pub use compound::{Compound, CompoundBuilder, Unknown, UnknownBuilder, Packet, PacketBuilder};
+pub use receiver::{ReceiverReport, ReceiverReportBuilder};
 pub use report_block::{ReportBlock, ReportBlockBuilder};
-pub use sdes::Sdes;
-pub use sender::SenderReport;
+pub use sdes::{Sdes, SdesItem, SdesBuilder, SdesItemBuilder, SdesChunk, SdesChunkBuilder};
+pub use sender::{SenderReport, SenderReportBuilder};
