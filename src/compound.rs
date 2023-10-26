@@ -162,6 +162,7 @@ impl<'a> UnknownBuilder<'a> {
     }
 }
 
+#[derive(Debug)]
 pub enum Packet<'a> {
     App(crate::App<'a>),
     Bye(crate::Bye<'a>),
