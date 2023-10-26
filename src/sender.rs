@@ -71,7 +71,7 @@ impl<'a> SenderReport<'a> {
     }
 
     pub fn report_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
-        self.data[8..8 + (self.n_reports() as usize * 24)]
+        self.data[Self::MIN_PACKET_LEN..Self::MIN_PACKET_LEN + (self.n_reports() as usize * 24)]
             .chunks_exact(24)
             .map(|b| ReportBlock::parse(b).unwrap())
     }
@@ -413,5 +413,33 @@ mod tests {
         let b = SenderReport::builder(0).padding(5);
         let err = b.calculate_size().unwrap_err();
         assert_eq!(err, RtcpWriteError::InvalidPadding { padding: 5 });
+    }
+
+    #[test]
+    fn parse_sr_with_2_rb() {
+        let sr = SenderReport::parse(&[
+            0x82, 0xc8, 0x00, 0x12, 0x91, 0x82, 0x73, 0x64, 0x89, 0xab, 0xcd, 0xef, 0x02, 0x24,
+            0x46, 0x68, 0x8a, 0xac, 0xce, 0xe0, 0xf1, 0xe2, 0xd3, 0xc4, 0xb5, 0xa6, 0x97, 0x88,
+            0x01, 0x23, 0x45, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x23, 0x45, 0x68,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ])
+        .unwrap();
+        assert_eq!(sr.version(), 2);
+        assert_eq!(sr.padding(), None);
+        assert_eq!(sr.n_reports(), 2);
+        assert_eq!(sr.length(), 76);
+        assert_eq!(sr.ssrc(), 0x91827364);
+        assert_eq!(sr.ntp_timestamp(), 0x89abcdef02244668);
+        assert_eq!(sr.rtp_timestamp(), 0x8aaccee0);
+        assert_eq!(sr.packet_count(), 0xf1e2d3c4);
+        assert_eq!(sr.octet_count(), 0xb5a69788);
+        let mut rb = sr.report_blocks();
+        let rb_item = rb.next().unwrap();
+        assert_eq!(rb_item.ssrc(), 0x01234567);
+        let rb_item = rb.next().unwrap();
+        assert_eq!(rb_item.ssrc(), 0x01234568);
+        assert_eq!(rb.next(), None);
     }
 }
