@@ -75,6 +75,7 @@ impl<'a> Unknown<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct UnknownBuilder<'a> {
     padding: u8,
     type_: u8,
@@ -176,12 +177,38 @@ pub enum Packet<'a> {
 pub struct Compound<'a> {
     data: &'a [u8],
     offset: usize,
+    is_over: bool,
 }
 
 impl<'a> Compound<'a> {
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        let ret = Self { data, offset: 0 };
-        Ok(ret)
+        let mut offset = 0;
+        let mut packet_length;
+
+        while offset < data.len() {
+            if data.len() < offset + Unknown::MIN_PACKET_LEN {
+                return Err(RtcpParseError::Truncated {
+                    expected: offset + Unknown::MIN_PACKET_LEN,
+                    actual: data.len(),
+                });
+            }
+
+            packet_length = parse_length(&data[offset..]);
+            if data.len() < packet_length {
+                return Err(RtcpParseError::Truncated {
+                    expected: offset + packet_length,
+                    actual: data.len(),
+                });
+            }
+
+            offset += packet_length;
+        }
+
+        Ok(Self {
+            data,
+            offset: 0,
+            is_over: false,
+        })
     }
 
     pub fn builder() -> CompoundBuilder<'a> {
@@ -190,49 +217,41 @@ impl<'a> Compound<'a> {
 }
 
 impl<'a> Iterator for Compound<'a> {
-    type Item = Packet<'a>;
+    type Item = Result<Packet<'a>, RtcpParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.offset >= self.data.len() {
+        if self.is_over {
             return None;
         }
 
-        if self.data.len() < self.offset + Unknown::MIN_PACKET_LEN {
-            return None;
-        }
+        // Length conformity checked in `Self::parse`
 
-        let data = &self.data[self.offset..];
-        let length = parse_length(data);
-        if data.len() < length {
-            return None;
-        }
+        let packet_length = parse_length(&self.data[self.offset..]);
+        let data = &self.data[self.offset..self.offset + packet_length];
 
-        let packet = match Unknown::parse(&data[..length]) {
-            Ok(packet) => packet,
-            Err(_) => return None,
+        let res = match parse_packet_type(data) {
+            crate::App::PACKET_TYPE => crate::App::parse(data).map(Packet::App),
+            crate::Bye::PACKET_TYPE => crate::Bye::parse(data).map(Packet::Bye),
+            crate::ReceiverReport::PACKET_TYPE => {
+                crate::ReceiverReport::parse(data).map(Packet::Rr)
+            }
+            crate::Sdes::PACKET_TYPE => crate::Sdes::parse(data).map(Packet::Sdes),
+            crate::SenderReport::PACKET_TYPE => crate::SenderReport::parse(data).map(Packet::Sr),
+            _ => Unknown::parse(data).map(Packet::Unknown),
         };
-        self.offset += packet.length();
-        Some(match packet.type_() {
-            crate::App::PACKET_TYPE => crate::App::parse(packet.data)
-                .map(Packet::App)
-                .unwrap_or_else(|_| Packet::Unknown(packet)),
-            crate::Bye::PACKET_TYPE => crate::Bye::parse(packet.data)
-                .map(Packet::Bye)
-                .unwrap_or_else(|_| Packet::Unknown(packet)),
-            crate::ReceiverReport::PACKET_TYPE => crate::ReceiverReport::parse(packet.data)
-                .map(Packet::Rr)
-                .unwrap_or_else(|_| Packet::Unknown(packet)),
-            crate::Sdes::PACKET_TYPE => crate::Sdes::parse(packet.data)
-                .map(Packet::Sdes)
-                .unwrap_or_else(|_| Packet::Unknown(packet)),
-            crate::SenderReport::PACKET_TYPE => crate::SenderReport::parse(packet.data)
-                .map(Packet::Sr)
-                .unwrap_or_else(|_| Packet::Unknown(packet)),
-            _ => Packet::Unknown(packet),
-        })
+
+        self.is_over = res.is_err();
+
+        self.offset += packet_length;
+        if self.offset >= self.data.len() {
+            self.is_over = true;
+        }
+
+        Some(res)
     }
 }
 
+#[derive(Debug)]
 pub enum PacketBuilder<'a> {
     App(crate::app::AppBuilder<'a>),
     Bye(crate::bye::ByeBuilder<'a>),
@@ -316,7 +335,7 @@ impl<'a> From<UnknownBuilder<'a>> for PacketBuilder<'a> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct CompoundBuilder<'a> {
     packets: Vec<PacketBuilder<'a>>,
 }
@@ -399,10 +418,10 @@ mod tests {
             0x80, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0x80, 0xcb, 0x00, 0x00,
         ];
         let mut compound = Compound::parse(&data).unwrap();
-        let packet = compound.next().unwrap();
+        let packet = compound.next().unwrap().unwrap();
         matches!(packet, Packet::Rr(_));
 
-        let packet = compound.next().unwrap();
+        let packet = compound.next().unwrap().unwrap();
         matches!(packet, Packet::Bye(_));
 
         assert!(compound.next().is_none());
@@ -428,15 +447,15 @@ mod tests {
     #[test]
     fn parse_sr_bye() {
         let data = [
-            0x82, 0xc8, 0x00, 0x06, 0x91, 0x82, 0x73, 0x64, 0x89, 0xab, 0xcd, 0xef, 0x02, 0x24,
+            0x80, 0xc8, 0x00, 0x06, 0x91, 0x82, 0x73, 0x64, 0x89, 0xab, 0xcd, 0xef, 0x02, 0x24,
             0x46, 0x68, 0x8a, 0xac, 0xce, 0xe0, 0xf1, 0xe2, 0xd3, 0xc4, 0xb5, 0xa6, 0x97, 0x88,
             0x80, 0xcb, 0x00, 0x00,
         ];
         let mut compound = Compound::parse(&data).unwrap();
-        let packet = compound.next().unwrap();
+        let packet = compound.next().unwrap().unwrap();
         matches!(packet, Packet::Sr(_));
 
-        let packet = compound.next().unwrap();
+        let packet = compound.next().unwrap().unwrap();
         matches!(packet, Packet::Bye(_));
 
         assert!(compound.next().is_none());
@@ -491,5 +510,55 @@ mod tests {
 
         let err = b.calculate_size().unwrap_err();
         assert_eq!(err, RtcpWriteError::NonLastCompoundPacketPadding);
+    }
+
+    #[test]
+    fn parse_rr_bye_wrong_first_len() {
+        let data = [
+            0x80, 0xc9, 0x00, 0x03, 0x91, 0x82, 0x73, 0x64, 0x80, 0xcb, 0x00, 0x00,
+        ];
+        let err = Compound::parse(&data).unwrap_err();
+        assert_eq!(
+            err,
+            RtcpParseError::Truncated {
+                expected: 16,
+                actual: 12
+            }
+        );
+    }
+
+    #[test]
+    fn parse_rr_truncated_bye() {
+        let data = [
+            0x80, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0x80, 0xcb, 0x00,
+        ];
+        let err = Compound::parse(&data).unwrap_err();
+        assert_eq!(
+            err,
+            RtcpParseError::Truncated {
+                expected: 12,
+                actual: 11
+            }
+        );
+    }
+
+    #[test]
+    fn parsing_failure_rr_bye() {
+        let data = [
+            0x81, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0x80, 0xcb, 0x00, 0x00,
+        ];
+        let mut compound = Compound::parse(&data).unwrap();
+
+        // RR count is 1 when the actual packet contains no reports.
+        let err = compound.next().unwrap().unwrap_err();
+        assert_eq!(
+            err,
+            RtcpParseError::Truncated {
+                expected: 32,
+                actual: 8
+            }
+        );
+
+        assert!(compound.next().is_none());
     }
 }
