@@ -55,7 +55,7 @@ impl<'a> ReceiverReport<'a> {
     }
 
     pub fn report_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
-        self.data[8..8 + (self.n_reports() as usize * 24)]
+        self.data[Self::MIN_PACKET_LEN..Self::MIN_PACKET_LEN + (self.n_reports() as usize * 24)]
             .chunks_exact(24)
             .map(|b| ReportBlock::parse(b).unwrap())
     }
@@ -249,6 +249,28 @@ mod tests {
                 0x00, 0x00, 0x00, 0x04,
             ]
         );
+    }
+
+    #[test]
+    fn parse_rr_with_2_rb() {
+        let rr = ReceiverReport::parse(&[
+            0x82, 0xc9, 0x00, 0x0d, 0x91, 0x82, 0x73, 0x64, 0x01, 0x23, 0x45, 0x67, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x01, 0x23, 0x45, 0x68, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ])
+        .unwrap();
+        assert_eq!(rr.version(), 2);
+        assert_eq!(rr.padding(), None);
+        assert_eq!(rr.n_reports(), 2);
+        assert_eq!(rr.length(), 56);
+        assert_eq!(rr.ssrc(), 0x91827364);
+        let mut rb = rr.report_blocks();
+        let rb_item = rb.next().unwrap();
+        assert_eq!(rb_item.ssrc(), 0x01234567);
+        let rb_item = rb.next().unwrap();
+        assert_eq!(rb_item.ssrc(), 0x01234568);
+        assert_eq!(rb.next(), None);
     }
 
     #[test]
