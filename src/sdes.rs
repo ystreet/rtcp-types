@@ -354,7 +354,7 @@ impl<'a> SdesChunkBuilder<'a> {
             items_size += item.calculate_size()?;
         }
 
-        Ok(pad_to_4bytes(4 + items_size))
+        Ok(pad_to_4bytes(4 + items_size + 1))
     }
 
     /// Writes this [`SdesChunk`] into `buf` without checking the buffer size.
@@ -373,7 +373,9 @@ impl<'a> SdesChunkBuilder<'a> {
             idx += item.write_into_unchecked(&mut buf[idx..]);
         }
 
-        let end = pad_to_4bytes(idx);
+        // always have at least one padding nul byte at the end so it is possible to determine the
+        // end of this chunk
+        let end = pad_to_4bytes(idx + 1);
         if end > idx {
             buf[idx..end].fill(0);
         }
@@ -539,6 +541,25 @@ mod tests {
         assert_eq!(sdes.version(), 2);
         assert_eq!(sdes.count(), 0);
         assert_eq!(sdes.chunks().count(), 0);
+    }
+
+    #[test]
+    fn sdes_item_multiple_of_4_has_zero_terminating() {
+        let ssrcs = [0x98765432, 0x67892345];
+        let sdes = Sdes::builder()
+            .add_chunk(
+                SdesChunk::builder(ssrcs[0]).add_item(SdesItem::builder(SdesItem::CNAME, "ab")),
+            )
+            .add_chunk(
+                SdesChunk::builder(ssrcs[1]).add_item(SdesItem::builder(SdesItem::CNAME, "cd")),
+            );
+        let mut data = [0; 256];
+        let len = sdes.write_into(&mut data).unwrap();
+        let data = &data[..len];
+        let parsed = Sdes::parse(data).unwrap();
+        for c in parsed.chunks() {
+            assert!(ssrcs.contains(&c.ssrc()));
+        }
     }
 
     #[test]
