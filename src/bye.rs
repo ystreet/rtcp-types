@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
+
 use crate::{
     prelude::*,
     utils::{pad_to_4bytes, parser, u32_from_be_bytes, writer},
@@ -90,7 +92,7 @@ impl<'a> Bye<'a> {
 pub struct ByeBuilder<'a> {
     padding: u8,
     sources: Vec<u32>,
-    reason: &'a str,
+    reason: Cow<'a, str>,
 }
 
 impl<'a> ByeBuilder<'a> {
@@ -98,7 +100,7 @@ impl<'a> ByeBuilder<'a> {
         ByeBuilder {
             padding: 0,
             sources: Vec::with_capacity(Bye::MAX_SOURCES as usize),
-            reason: "",
+            reason: "".into(),
         }
     }
 
@@ -115,9 +117,18 @@ impl<'a> ByeBuilder<'a> {
     }
 
     /// Sets the reason for this Bye packet.
-    pub fn reason(mut self, reason: &'a str) -> Self {
-        self.reason = reason;
+    pub fn reason(mut self, reason: impl Into<Cow<'a, str>>) -> Self {
+        self.reason = reason.into();
         self
+    }
+
+    /// Sets the (owned) reason for this Bye packet.
+    pub fn reason_owned(self, reason: impl Into<Cow<'a, str>>) -> ByeBuilder<'static> {
+        ByeBuilder {
+            padding: self.padding,
+            sources: self.sources,
+            reason: reason.into().into_owned().into(),
+        }
     }
 }
 
@@ -233,6 +244,26 @@ mod tests {
         let len = byeb.write_into(&mut data).unwrap();
         assert_eq!(len, REQ_LEN);
         assert_eq!(data, [0x80, 0xcb, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn build_bye_static() {
+        const REQ_LEN: usize = Bye::MIN_PACKET_LEN + 4 + 4;
+
+        let byeb = {
+            let reason = &String::from("Bye");
+            Bye::builder().reason_owned(reason).add_source(0x12345678)
+        };
+        let req_len = byeb.calculate_size().unwrap();
+        assert_eq!(req_len, REQ_LEN);
+
+        let mut data = [0; REQ_LEN];
+        let len = byeb.write_into(&mut data).unwrap();
+        assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [0x81, 0xcb, 0x00, 0x02, 0x12, 0x34, 0x56, 0x78, 0x03, 0x42, 0x79, 0x65]
+        );
     }
 
     #[test]
