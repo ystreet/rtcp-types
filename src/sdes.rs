@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::marker::PhantomData;
 
 use crate::{
@@ -399,27 +400,38 @@ impl<'a> SdesChunkBuilder<'a> {
     }
 }
 
+impl SdesChunkBuilder<'static> {
+    /// Adds an item transforming it into an owned version first.
+    ///
+    /// The resulting `SdesChunkBuilder` is then independent of
+    /// the initial lifetime of the [`SdesItemBuilder`].
+    pub fn add_item_owned(mut self, item: SdesItemBuilder<'_>) -> Self {
+        self.items.push(item.into_owned());
+        self
+    }
+}
+
 #[derive(Debug)]
 pub struct SdesItemBuilder<'a> {
     type_: u8,
-    prefix: &'a [u8],
-    value: &'a str,
+    prefix: Cow<'a, [u8]>,
+    value: Cow<'a, str>,
 }
 
 impl<'a> SdesItemBuilder<'a> {
-    pub fn new(type_: u8, value: &'a str) -> SdesItemBuilder<'a> {
+    pub fn new(type_: u8, value: impl Into<Cow<'a, str>>) -> SdesItemBuilder<'a> {
         SdesItemBuilder {
             type_,
-            prefix: &[],
-            value,
+            prefix: Default::default(),
+            value: value.into(),
         }
     }
 
     /// Adds a prefix to a PRIV SDES Item.
     ///
     /// Has no effect if the type is not `SdesItem::PRIV`.
-    pub fn prefix(mut self, prefix: &'a [u8]) -> Self {
-        self.prefix = prefix;
+    pub fn prefix(mut self, prefix: impl Into<Cow<'a, [u8]>>) -> Self {
+        self.prefix = prefix.into();
         self
     }
 
@@ -486,7 +498,7 @@ impl<'a> SdesItemBuilder<'a> {
 
             buf[2] = prefix_len as u8;
             end = prefix_len + 3;
-            buf[3..end].copy_from_slice(self.prefix);
+            buf[3..end].copy_from_slice(&self.prefix);
 
             let idx = end;
             end += value_len;
@@ -513,6 +525,17 @@ impl<'a> SdesItemBuilder<'a> {
         }
 
         Ok(self.write_into_unchecked(&mut buf[..req_size]))
+    }
+
+    /// Converts this `SdesItemBuilder` into an owned version.
+    ///
+    /// Clones the `value` (and `prefix` if applicable) if it is not already owned.
+    pub fn into_owned(self) -> SdesItemBuilder<'static> {
+        SdesItemBuilder {
+            type_: self.type_,
+            prefix: self.prefix.into_owned().into(),
+            value: self.value.into_owned().into(),
+        }
     }
 }
 
@@ -628,7 +651,9 @@ mod tests {
         let chunk1 = SdesChunk::builder(0x12345678)
             .add_item(SdesItem::builder(SdesItem::CNAME, "cname"))
             .add_item(SdesItem::builder(SdesItem::NAME, "François"))
-            .add_item(SdesItem::builder(SdesItem::PRIV, "priv-value").prefix(b"priv-prefix"));
+            .add_item(
+                SdesItem::builder(SdesItem::PRIV, "priv-value").prefix(b"priv-prefix".as_ref()),
+            );
 
         const REQ_LEN: usize = Sdes::MIN_PACKET_LEN
             + SdesChunk::MIN_LEN
@@ -736,6 +761,37 @@ mod tests {
                 0x34, 0x56, 0x78, 0x9a, 0x03, 0x09, 0x75, 0x73, 0x65, 0x72, 0x40, 0x68, 0x6f, 0x73,
                 0x74, 0x04, 0x0c, 0x2b, 0x33, 0x33, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33,
                 0x34, 0x00, 0x00, 0x00,
+            ]
+        );
+    }
+
+    #[test]
+    fn build_static_sdes() {
+        const REQ_LEN: usize = Sdes::MIN_PACKET_LEN
+            + SdesChunk::MIN_LEN
+            + pad_to_4bytes(2 + 5 /* cname */ + 2 + 4 /* name */);
+
+        let sdesb = {
+            let cname = "cname".to_string();
+            let name = "name".to_string();
+            let chunk1 = SdesChunk::builder(0x12345678)
+                .add_item(SdesItem::builder(SdesItem::CNAME, &cname).into_owned())
+                .add_item_owned(SdesItem::builder(SdesItem::NAME, &name));
+
+            Sdes::builder().add_chunk(chunk1)
+        };
+
+        let req_len = sdesb.calculate_size().unwrap();
+        assert_eq!(req_len, REQ_LEN);
+
+        let mut data = [0; REQ_LEN];
+        let len = sdesb.write_into(&mut data).unwrap();
+        assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [
+                0x81, 0xca, 0x00, 0x05, 0x12, 0x34, 0x56, 0x78, 0x01, 0x05, 0x63, 0x6e, 0x61, 0x6d,
+                0x65, 0x02, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x00, 0x00, 0x00,
             ]
         );
     }
