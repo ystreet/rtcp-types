@@ -398,13 +398,10 @@ impl<'a> SdesChunkBuilder<'a> {
 
         Ok(self.write_into_unchecked(&mut buf[..req_size]))
     }
-}
 
-impl SdesChunkBuilder<'static> {
     /// Adds an item transforming it into an owned version first.
     ///
-    /// The resulting `SdesChunkBuilder` is then independent of
-    /// the initial lifetime of the [`SdesItemBuilder`].
+    /// Lifetime of `self` is unchanged even if `item` is shorter lived.
     pub fn add_item_owned(mut self, item: SdesItemBuilder<'_>) -> Self {
         self.items.push(item.into_owned());
         self
@@ -787,6 +784,43 @@ mod tests {
         let mut data = [0; REQ_LEN];
         let len = sdesb.write_into(&mut data).unwrap();
         assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [
+                0x81, 0xca, 0x00, 0x05, 0x12, 0x34, 0x56, 0x78, 0x01, 0x05, 0x63, 0x6e, 0x61, 0x6d,
+                0x65, 0x02, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x00, 0x00, 0x00,
+            ]
+        );
+    }
+
+    #[test]
+    fn build_sdes_from_shorter_lived_item() {
+        const REQ_LEN: usize = Sdes::MIN_PACKET_LEN
+            + SdesChunk::MIN_LEN
+            + pad_to_4bytes(2 + 5 /* cname */ + 2 + 4 /* name */);
+
+        let mut data = [0; REQ_LEN];
+
+        {
+            let cname = "cname".to_string();
+            let chunk1 = SdesChunk::builder(0x12345678)
+                .add_item(SdesItem::builder(SdesItem::CNAME, cname.as_str()));
+
+            let chunk1 = {
+                // adding name which is shorter lived than chunk1
+                let name = "name".to_string();
+                chunk1.add_item_owned(SdesItem::builder(SdesItem::NAME, name.as_str()))
+            };
+
+            let sdesb = Sdes::builder().add_chunk(chunk1);
+
+            let req_len = sdesb.calculate_size().unwrap();
+            assert_eq!(req_len, REQ_LEN);
+
+            let len = sdesb.write_into(&mut data).unwrap();
+            assert_eq!(len, REQ_LEN);
+        }
+
         assert_eq!(
             data,
             [
