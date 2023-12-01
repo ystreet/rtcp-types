@@ -67,6 +67,7 @@ impl<'a> ReceiverReport<'a> {
 
 /// Receiver Report Builder
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct ReceiverReportBuilder {
     ssrc: u32,
     padding: u8,

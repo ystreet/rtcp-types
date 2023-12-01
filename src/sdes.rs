@@ -248,6 +248,7 @@ impl<'a> SdesItem<'a> {
 
 /// SDES packet Builder
 #[derive(Debug, Default)]
+#[must_use = "The builder must be built to be used"]
 pub struct SdesBuilder<'a> {
     padding: u8,
     chunks: Vec<SdesChunkBuilder<'a>>,
@@ -324,6 +325,7 @@ impl<'a> RtcpPacketWriter for SdesBuilder<'a> {
 
 /// SDES Chunk Builder
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct SdesChunkBuilder<'a> {
     ssrc: u32,
     items: Vec<SdesItemBuilder<'a>>,
@@ -409,6 +411,7 @@ impl<'a> SdesChunkBuilder<'a> {
 }
 
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct SdesItemBuilder<'a> {
     type_: u8,
     prefix: Cow<'a, [u8]>,

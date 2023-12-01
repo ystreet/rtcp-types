@@ -89,6 +89,7 @@ impl<'a> Bye<'a> {
 
 /// Bye packet Builder
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct ByeBuilder<'a> {
     padding: u8,
     sources: Vec<u32>,

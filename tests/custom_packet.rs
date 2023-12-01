@@ -58,6 +58,7 @@ impl<'a> Custom<'a> {
 
 /// Custom packet Builder
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct CustomBuilder {
     ssrc: u32,
     padding: u8,

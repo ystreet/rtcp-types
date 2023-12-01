@@ -72,6 +72,7 @@ impl<'a> Unknown<'a> {
 }
 
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct UnknownBuilder<'a> {
     padding: u8,
     type_: u8,
@@ -283,6 +284,7 @@ impl<'a> Iterator for Compound<'a> {
 }
 
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub enum PacketBuilder<'a> {
     App(crate::app::AppBuilder<'a>),
     Bye(crate::bye::ByeBuilder<'a>),
@@ -331,6 +333,7 @@ impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
 }
 
 #[derive(Default, Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct CompoundBuilder<'a> {
     packets: Vec<Box<dyn RtcpPacketWriter + 'a>>,
 }

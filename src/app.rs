@@ -71,6 +71,7 @@ impl<'a> App<'a> {
 
 /// App packet Builder
 #[derive(Debug)]
+#[must_use = "The builder must be built to be used"]
 pub struct AppBuilder<'a> {
     ssrc: u32,
     padding: u8,

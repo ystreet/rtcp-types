@@ -63,6 +63,7 @@ impl<'a> ReportBlock<'a> {
 
 /// Report Block Builder
 #[derive(Debug, Eq, PartialEq)]
+#[must_use = "The builder must be built to be used"]
 pub struct ReportBlockBuilder {
     ssrc: u32,
     fraction_lost: u8,
