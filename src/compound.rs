@@ -228,6 +228,13 @@ impl<'a> Compound<'a> {
         let mut offset = 0;
         let mut packet_length;
 
+        if data.is_empty() {
+            return Err(RtcpParseError::Truncated {
+                expected: 4,
+                actual: 0,
+            });
+        }
+
         while offset < data.len() {
             if data.len() < offset + Unknown::MIN_PACKET_LEN {
                 return Err(RtcpParseError::Truncated {
@@ -237,7 +244,7 @@ impl<'a> Compound<'a> {
             }
 
             packet_length = parse_length(&data[offset..]);
-            if data.len() < packet_length {
+            if data.len() < offset + packet_length {
                 return Err(RtcpParseError::Truncated {
                     expected: offset + packet_length,
                     actual: data.len(),
