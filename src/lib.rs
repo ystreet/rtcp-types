@@ -79,9 +79,9 @@ pub trait RtcpPacketWriterExt: RtcpPacketWriter {
     ///
     /// The default implementation:
     ///
-    /// * Calls [`Self::calculate_size`] for validity checks and size calculation.
+    /// * Calls [`RtcpPacketWriter::calculate_size`] for validity checks and size calculation.
     /// * Checks that the provided buffer is large enough to store this RTCP packet.
-    /// * Writes to the provided buffer using [`Self::write_into_unchecked`].
+    /// * Writes to the provided buffer using [`RtcpPacketWriter::write_into_unchecked`].
     fn write_into(&self, buf: &mut [u8]) -> Result<usize, RtcpWriteError> {
         let req_size = self.calculate_size()?;
         if buf.len() < req_size {
