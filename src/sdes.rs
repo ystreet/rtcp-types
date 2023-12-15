@@ -175,6 +175,12 @@ impl<'a> SdesItem<'a> {
         let item = Self { data: &data[..end] };
 
         if item.type_() == Self::PRIV {
+            if item.data.len() < 3 {
+                return Err(RtcpParseError::Truncated {
+                    expected: 3,
+                    actual: item.data.len(),
+                });
+            }
             let prefix_len = item.priv_prefix_len();
             let value_offset = item.priv_value_offset();
 
@@ -223,9 +229,9 @@ impl<'a> SdesItem<'a> {
         self.data[2]
     }
 
-    fn priv_value_offset(&self) -> u8 {
+    fn priv_value_offset(&self) -> u16 {
         debug_assert!(self.type_() == Self::PRIV);
-        self.priv_prefix_len() + 3
+        self.priv_prefix_len() as u16 + 3
     }
 
     /// Gets the prefix of this PRIV SDES Item.
