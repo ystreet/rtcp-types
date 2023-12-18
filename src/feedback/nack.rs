@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::feedback::FciFeedbackPacketType;
 use crate::{prelude::*, utils::u16_from_be_bytes};
 use crate::{RtcpParseError, RtcpWriteError};
 
@@ -76,10 +77,10 @@ impl<'a> Nack<'a> {
 }
 
 impl<'a> FciParser<'a> for Nack<'a> {
-    fn parse(format: u8, data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        if format != 1 {
-            return Err(RtcpParseError::WrongImplementation);
-        }
+    const PACKET_TYPE: FciFeedbackPacketType = FciFeedbackPacketType::TRANSPORT;
+    const FCI_FORMAT: u8 = 1;
+
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         Ok(Self { data })
     }
 }
@@ -161,6 +162,10 @@ impl NackBuilder {
 impl<'a> FciBuilder<'a> for NackBuilder {
     fn format(&self) -> u8 {
         1
+    }
+
+    fn supports_feedback_type(&self) -> FciFeedbackPacketType {
+        FciFeedbackPacketType::TRANSPORT
     }
 }
 

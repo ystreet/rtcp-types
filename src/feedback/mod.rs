@@ -9,6 +9,47 @@ use crate::{
 pub mod nack;
 pub mod pli;
 
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct FciFeedbackPacketType {
+    transport: bool,
+    payload: bool,
+}
+
+impl FciFeedbackPacketType {
+    pub const NONE: Self = Self {
+        transport: false,
+        payload: false,
+    };
+    pub const TRANSPORT: Self = Self {
+        transport: true,
+        payload: false,
+    };
+    pub const PAYLOAD: Self = Self {
+        transport: false,
+        payload: true,
+    };
+}
+
+impl std::ops::BitOr<FciFeedbackPacketType> for FciFeedbackPacketType {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self {
+            transport: self.transport | rhs.transport,
+            payload: self.payload | rhs.payload,
+        }
+    }
+}
+
+impl std::ops::BitAnd<FciFeedbackPacketType> for FciFeedbackPacketType {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self {
+            transport: self.transport & rhs.transport,
+            payload: self.payload & rhs.payload,
+        }
+    }
+}
+
 /// A parsed (Transport) Feedback packet as specified in RFC 4585.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransportFeedback<'a> {
@@ -55,7 +96,13 @@ impl<'a> TransportFeedback<'a> {
     }
 
     pub fn parse_fci<F: FciParser<'a>>(&self) -> Result<F, RtcpParseError> {
-        F::parse(parser::parse_count(self.data), &self.data[12..])
+        if F::PACKET_TYPE & FciFeedbackPacketType::TRANSPORT == FciFeedbackPacketType::NONE {
+            return Err(RtcpParseError::WrongImplementation);
+        }
+        if parser::parse_count(self.data) != F::FCI_FORMAT {
+            return Err(RtcpParseError::WrongImplementation);
+        }
+        F::parse(&self.data[12..])
     }
 }
 
@@ -89,12 +136,17 @@ impl TransportFeedbackBuilder {
 
 #[inline]
 fn fb_write_into<T: RtcpPacket>(
+    feedback_type: FciFeedbackPacketType,
     buf: &mut [u8],
     sender_ssrc: u32,
     media_ssrc: u32,
     fci: &dyn FciBuilder,
     padding: u8,
 ) -> usize {
+    if feedback_type & fci.supports_feedback_type() == FciFeedbackPacketType::NONE {
+        return 0;
+    }
+
     let fmt = fci.format();
     assert!(fmt <= 0x1f);
     let mut idx = writer::write_header_unchecked::<T>(padding, fmt, buf);
@@ -124,10 +176,12 @@ impl RtcpPacketWriter for TransportFeedbackBuilder {
     fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         writer::check_padding(self.padding)?;
 
-        let fci_len = self
-            .fci
-            .as_ref()
-            .calculate_size()?;
+        if self.fci.supports_feedback_type() & FciFeedbackPacketType::TRANSPORT
+            == FciFeedbackPacketType::NONE
+        {
+            return Err(RtcpWriteError::FciWrongFeedbackPacketType);
+        }
+        let fci_len = self.fci.calculate_size()?;
 
         Ok(TransportFeedback::MIN_PACKET_LEN + pad_to_4bytes(fci_len))
     }
@@ -142,6 +196,7 @@ impl RtcpPacketWriter for TransportFeedbackBuilder {
     #[inline]
     fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
         fb_write_into::<TransportFeedback>(
+            FciFeedbackPacketType::TRANSPORT,
             buf,
             self.sender_ssrc,
             self.media_ssrc,
@@ -205,7 +260,13 @@ impl<'a> PayloadFeedback<'a> {
     }
 
     pub fn parse_fci<F: FciParser<'a>>(&self) -> Result<F, RtcpParseError> {
-        F::parse(parser::parse_count(self.data), &self.data[12..])
+        if F::PACKET_TYPE & FciFeedbackPacketType::PAYLOAD == FciFeedbackPacketType::NONE {
+            return Err(RtcpParseError::WrongImplementation);
+        }
+        if parser::parse_count(self.data) != F::FCI_FORMAT {
+            return Err(RtcpParseError::WrongImplementation);
+        }
+        F::parse(&self.data[12..])
     }
 }
 
@@ -247,10 +308,12 @@ impl RtcpPacketWriter for PayloadFeedbackBuilder {
     fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         writer::check_padding(self.padding)?;
 
-        let fci_len = self
-            .fci
-            .as_ref()
-            .calculate_size()?;
+        if self.fci.supports_feedback_type() & FciFeedbackPacketType::PAYLOAD
+            == FciFeedbackPacketType::NONE
+        {
+            return Err(RtcpWriteError::FciWrongFeedbackPacketType);
+        }
+        let fci_len = self.fci.calculate_size()?;
 
         Ok(PayloadFeedback::MIN_PACKET_LEN + pad_to_4bytes(fci_len))
     }
@@ -265,6 +328,7 @@ impl RtcpPacketWriter for PayloadFeedbackBuilder {
     #[inline]
     fn write_into_unchecked(&self, buf: &mut [u8]) -> usize {
         fb_write_into::<PayloadFeedback>(
+            FciFeedbackPacketType::PAYLOAD,
             buf,
             self.sender_ssrc,
             self.media_ssrc,
@@ -283,11 +347,15 @@ impl RtcpPacketWriter for PayloadFeedbackBuilder {
 }
 
 pub trait FciParser<'a>: Sized {
+    const PACKET_TYPE: FciFeedbackPacketType;
+    const FCI_FORMAT: u8;
+
     /// Parse the provided FCI data
-    fn parse(format: u8, data: &'a [u8]) -> Result<Self, RtcpParseError>;
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError>;
 }
 
 pub trait FciBuilder<'a>: RtcpPacketWriter {
     /// The format field value to place in the RTCP header
     fn format(&self) -> u8;
+    fn supports_feedback_type(&self) -> FciFeedbackPacketType;
 }
