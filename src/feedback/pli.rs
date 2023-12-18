@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::feedback::FciFeedbackPacketType;
 use crate::{prelude::*, RtcpParseError, RtcpWriteError};
 
 /// Picture Loss Information as specified in RFC 4585
@@ -15,10 +16,10 @@ impl<'a> Pli<'a> {
 }
 
 impl<'a> FciParser<'a> for Pli<'a> {
-    fn parse(format: u8, data: &'a [u8]) -> Result<Self, RtcpParseError> {
-        if format != 1 {
-            return Err(RtcpParseError::WrongImplementation);
-        }
+    const PACKET_TYPE: FciFeedbackPacketType = FciFeedbackPacketType::PAYLOAD;
+    const FCI_FORMAT: u8 = 1;
+
+    fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         if !data.is_empty() {
             return Err(RtcpParseError::TooLarge {
                 expected: 0,
@@ -35,6 +36,10 @@ pub struct PliBuilder {}
 impl<'a> FciBuilder<'a> for PliBuilder {
     fn format(&self) -> u8 {
         1
+    }
+
+    fn supports_feedback_type(&self) -> FciFeedbackPacketType {
+        FciFeedbackPacketType::PAYLOAD
     }
 }
 
@@ -55,7 +60,7 @@ impl RtcpPacketWriter for PliBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feedback::PayloadFeedback;
+    use crate::feedback::{PayloadFeedback, TransportFeedback};
 
     #[test]
     fn pli_build_parse() {
@@ -80,6 +85,38 @@ mod tests {
         assert_eq!(fb.sender_ssrc(), 0x98765432);
         assert_eq!(fb.media_ssrc(), 0x10fedcba);
         let _pli = fb.parse_fci::<Pli>().unwrap();
+    }
+
+    #[test]
+    fn pli_parse_wrong_packet() {
+        let fb = TransportFeedback::parse(&[
+            0x81, 0xcd, 0x00, 0x02, 0x98, 0x76, 0x54, 0x32, 0x10, 0xfe, 0xdc, 0xba,
+        ])
+        .unwrap();
+        assert!(matches!(
+            fb.parse_fci::<Pli>(),
+            Err(RtcpParseError::WrongImplementation),
+        ));
+    }
+
+    #[test]
+    fn pli_build_wrong_packet_type() {
+        const REQ_LEN: usize = TransportFeedback::MIN_PACKET_LEN;
+        let mut data = [0; REQ_LEN];
+        let pli = {
+            let fci = Pli::builder();
+            TransportFeedback::builder(fci)
+                .sender_ssrc(0x98765432)
+                .media_ssrc(0x10fedcba)
+        };
+        assert!(matches!(
+            pli.calculate_size(),
+            Err(RtcpWriteError::FciWrongFeedbackPacketType)
+        ));
+        assert!(matches!(
+            pli.write_into(&mut data),
+            Err(RtcpWriteError::FciWrongFeedbackPacketType)
+        ));
     }
 
     #[test]

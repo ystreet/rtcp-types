@@ -223,6 +223,10 @@ pub enum RtcpWriteError {
     /// Number of NACK's will not fit within a single RTCP packet.
     #[error("The number of NACK entries will not fit inside a RTCP packet.")]
     TooManyNack,
+
+    /// Feedback packet does not support this FCI data.
+    #[error("Wrong feedback packet type for the provided FCI data")]
+    FciWrongFeedbackPacketType,
 }
 
 impl From<RtcpParseError> for RtcpWriteError {
