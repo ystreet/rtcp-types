@@ -8,6 +8,7 @@ use crate::{
 
 pub mod nack;
 pub mod pli;
+pub mod rpsi;
 pub mod sli;
 
 #[derive(Debug, Default, PartialEq, Eq)]

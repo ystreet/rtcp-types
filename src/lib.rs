@@ -227,6 +227,14 @@ pub enum RtcpWriteError {
     /// Feedback packet does not support this FCI data.
     #[error("Wrong feedback packet type for the provided FCI data")]
     FciWrongFeedbackPacketType,
+
+    /// Payload type value out of range.
+    #[error("The RTP payload value is not a valid value")]
+    PayloadTypeInvalid,
+
+    /// Payload type value out of range.
+    #[error("The amount of padding bits are greater than the size of the data")]
+    PaddingBitsTooLarge,
 }
 
 impl From<RtcpParseError> for RtcpWriteError {
@@ -261,6 +269,7 @@ pub use bye::{Bye, ByeBuilder};
 pub use compound::{Compound, CompoundBuilder, Packet, PacketBuilder, Unknown, UnknownBuilder};
 pub use feedback::nack::{Nack, NackBuilder};
 pub use feedback::pli::{Pli, PliBuilder};
+pub use feedback::rpsi::{Rpsi, RpsiBuilder};
 pub use feedback::sli::{Sli, SliBuilder};
 pub use feedback::{
     FciBuilder, FciParser, PayloadFeedback, PayloadFeedbackBuilder, TransportFeedback,
