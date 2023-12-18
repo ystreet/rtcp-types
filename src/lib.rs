@@ -215,6 +215,14 @@ pub enum RtcpWriteError {
     /// Non-last Compound packet padding defined.
     #[error("Non-last Compound packet padding defined")]
     NonLastCompoundPacketPadding,
+
+    /// Feedback packet does not have any FCI defined.
+    #[error("Feedback packet does not contain any FCI data")]
+    MissingFci,
+
+    /// Number of NACK's will not fit within a single RTCP packet.
+    #[error("The number of NACK entries will not fit inside a RTCP packet.")]
+    TooManyNack,
 }
 
 impl From<RtcpParseError> for RtcpWriteError {
@@ -237,6 +245,7 @@ impl From<RtcpParseError> for RtcpWriteError {
 mod app;
 mod bye;
 mod compound;
+mod feedback;
 mod receiver;
 mod report_block;
 mod sdes;
@@ -246,11 +255,20 @@ pub mod utils;
 pub use app::{App, AppBuilder};
 pub use bye::{Bye, ByeBuilder};
 pub use compound::{Compound, CompoundBuilder, Packet, PacketBuilder, Unknown, UnknownBuilder};
+pub use feedback::nack::{Nack, NackBuilder};
+pub use feedback::pli::{Pli, PliBuilder};
+pub use feedback::{
+    FciBuilder, FciParser, PayloadFeedback, PayloadFeedbackBuilder, TransportFeedback,
+    TransportFeedbackBuilder,
+};
 pub use receiver::{ReceiverReport, ReceiverReportBuilder};
 pub use report_block::{ReportBlock, ReportBlockBuilder};
 pub use sdes::{Sdes, SdesBuilder, SdesChunk, SdesChunkBuilder, SdesItem, SdesItemBuilder};
 pub use sender::{SenderReport, SenderReportBuilder};
 
 pub mod prelude {
-    pub use super::{RtcpPacketParser, RtcpPacketParserExt, RtcpPacketWriter, RtcpPacketWriterExt};
+    pub use super::{
+        FciBuilder, FciParser, RtcpPacket, RtcpPacketParser, RtcpPacketParserExt, RtcpPacketWriter,
+        RtcpPacketWriterExt,
+    };
 }

@@ -157,6 +157,8 @@ pub enum Packet<'a> {
     Rr(crate::ReceiverReport<'a>),
     Sdes(crate::Sdes<'a>),
     Sr(crate::SenderReport<'a>),
+    TransportFeedback(crate::TransportFeedback<'a>),
+    PayloadFeedback(crate::PayloadFeedback<'a>),
     Unknown(Unknown<'a>),
 }
 
@@ -201,6 +203,8 @@ impl<'a> RtcpPacketParser<'a> for Packet<'a> {
             Rr(this) => this.header_data(),
             Sdes(this) => this.header_data(),
             Sr(this) => this.header_data(),
+            TransportFeedback(this) => this.header_data(),
+            PayloadFeedback(this) => this.header_data(),
             Unknown(this) => this.header_data(),
         }
     }
@@ -298,6 +302,8 @@ pub enum PacketBuilder<'a> {
     Rr(crate::receiver::ReceiverReportBuilder),
     Sdes(crate::sdes::SdesBuilder<'a>),
     Sr(crate::sender::SenderReportBuilder),
+    TransportFeedback(crate::feedback::TransportFeedbackBuilder),
+    PayloadFeedback(crate::feedback::PayloadFeedbackBuilder),
     Unknown(UnknownBuilder<'a>),
 }
 
@@ -310,6 +316,8 @@ impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
             Rr(this) => this.get_padding(),
             Sdes(this) => this.get_padding(),
             Sr(this) => this.get_padding(),
+            TransportFeedback(this) => this.get_padding(),
+            PayloadFeedback(this) => this.get_padding(),
             Unknown(this) => this.get_padding(),
         }
     }
@@ -322,6 +330,8 @@ impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
             Rr(this) => this.calculate_size(),
             Sdes(this) => this.calculate_size(),
             Sr(this) => this.calculate_size(),
+            TransportFeedback(this) => this.calculate_size(),
+            PayloadFeedback(this) => this.calculate_size(),
             Unknown(this) => this.calculate_size(),
         }
     }
@@ -334,6 +344,8 @@ impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
             Rr(this) => this.write_into_unchecked(buf),
             Sdes(this) => this.write_into_unchecked(buf),
             Sr(this) => this.write_into_unchecked(buf),
+            TransportFeedback(this) => this.write_into_unchecked(buf),
+            PayloadFeedback(this) => this.write_into_unchecked(buf),
             Unknown(this) => this.write_into_unchecked(buf),
         }
     }
@@ -472,6 +484,16 @@ impl_try_from!(
     crate::sender::SenderReport<'a>,
     crate::sender::SenderReportBuilder,
     Sr
+);
+impl_try_from!(
+    crate::feedback::TransportFeedback<'a>,
+    crate::feedback::TransportFeedbackBuilder,
+    TransportFeedback
+);
+impl_try_from!(
+    crate::feedback::PayloadFeedback<'a>,
+    crate::feedback::PayloadFeedbackBuilder,
+    PayloadFeedback
 );
 
 impl<'a> From<Unknown<'a>> for Packet<'a> {
