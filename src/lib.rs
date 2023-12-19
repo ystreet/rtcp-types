@@ -235,6 +235,10 @@ pub enum RtcpWriteError {
     /// Payload type value out of range.
     #[error("The amount of padding bits are greater than the size of the data")]
     PaddingBitsTooLarge,
+
+    /// Number of FIR's will not fit within a single RTCP packet.
+    #[error("The number of FIR entries will not fit inside a RTCP packet.")]
+    TooManyFir,
 }
 
 impl From<RtcpParseError> for RtcpWriteError {
@@ -267,6 +271,7 @@ pub mod utils;
 pub use app::{App, AppBuilder};
 pub use bye::{Bye, ByeBuilder};
 pub use compound::{Compound, CompoundBuilder, Packet, PacketBuilder, Unknown, UnknownBuilder};
+pub use feedback::fir::{Fir, FirBuilder, FirEntry};
 pub use feedback::nack::{Nack, NackBuilder};
 pub use feedback::pli::{Pli, PliBuilder};
 pub use feedback::rpsi::{Rpsi, RpsiBuilder};
