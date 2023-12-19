@@ -6,6 +6,7 @@ use crate::{
     RtcpPacket, RtcpPacketParser, RtcpParseError, RtcpWriteError,
 };
 
+pub mod fir;
 pub mod nack;
 pub mod pli;
 pub mod rpsi;
