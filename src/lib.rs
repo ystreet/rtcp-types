@@ -261,6 +261,7 @@ pub use bye::{Bye, ByeBuilder};
 pub use compound::{Compound, CompoundBuilder, Packet, PacketBuilder, Unknown, UnknownBuilder};
 pub use feedback::nack::{Nack, NackBuilder};
 pub use feedback::pli::{Pli, PliBuilder};
+pub use feedback::sli::{Sli, SliBuilder};
 pub use feedback::{
     FciBuilder, FciParser, PayloadFeedback, PayloadFeedbackBuilder, TransportFeedback,
     TransportFeedbackBuilder,
