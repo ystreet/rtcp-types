@@ -190,6 +190,12 @@ impl<'a> RtcpPacketParser<'a> for Packet<'a> {
             }
             crate::Sdes::PACKET_TYPE => crate::Sdes::parse(data).map(Packet::Sdes),
             crate::SenderReport::PACKET_TYPE => crate::SenderReport::parse(data).map(Packet::Sr),
+            crate::PayloadFeedback::PACKET_TYPE => {
+                crate::PayloadFeedback::parse(data).map(Packet::PayloadFeedback)
+            }
+            crate::TransportFeedback::PACKET_TYPE => {
+                crate::TransportFeedback::parse(data).map(Packet::TransportFeedback)
+            }
             _ => Ok(Packet::Unknown(Unknown::parse(data)?)),
         }
     }
