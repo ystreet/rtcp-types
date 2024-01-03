@@ -150,7 +150,7 @@ mod tests {
         let mut data = [0; REQ_LEN];
         let fir = {
             let fci = Fir::builder().add_ssrc(0xfedcba98, 0x30);
-            PayloadFeedback::builder(fci)
+            PayloadFeedback::builder_owned(fci)
                 .sender_ssrc(0x98765432)
                 .media_ssrc(0)
         };

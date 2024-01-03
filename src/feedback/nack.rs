@@ -221,7 +221,7 @@ mod tests {
             for i in (0..=n - 1).step_by(m as usize) {
                 fci = fci.add_rtp_sequence(start + i);
             }
-            TransportFeedback::builder(fci)
+            TransportFeedback::builder_owned(fci)
                 .sender_ssrc(0x98765432)
                 .media_ssrc(0x10fedcba)
         };
@@ -268,5 +268,34 @@ mod tests {
     #[test]
     fn nack_build_parse_12_2_timestamps() {
         nack_build_parse_n_m_timestamps(0x1234, 12, 2, &[0x12, 0x34, 0x02, 0b1010_1010]);
+    }
+
+    #[test]
+    fn nack_build_ref_2_consecutive_timestamps() {
+        let n = 2;
+        let m = 1;
+        let fci = &[0x12, 0x34, 0x00, 0x01];
+
+        let r = (n + 1) % m;
+        let req_len = TransportFeedback::MIN_PACKET_LEN + ((n - r + 16) / 17 * 4) as usize;
+        let mut data = vec![0; req_len];
+        let mut expected = vec![0; req_len];
+        const TEMPLATE: [u8; 12] = [
+            0x81, 0xcd, 0x00, 0x00, 0x98, 0x76, 0x54, 0x32, 0x10, 0xfe, 0xdc, 0xba,
+        ];
+        expected[0..12].copy_from_slice(&TEMPLATE);
+        expected[3] = (req_len / 4 - 1) as u8;
+        expected[12..12 + fci.len()].copy_from_slice(fci);
+        let mut fci = Nack::builder();
+        for i in (0..=n - 1).step_by(m as usize) {
+            fci = fci.add_rtp_sequence(0x1234 + i);
+        }
+        let nack = TransportFeedback::builder(&fci)
+            .sender_ssrc(0x98765432)
+            .media_ssrc(0x10fedcba);
+        assert_eq!(nack.calculate_size().unwrap(), req_len);
+        let len = nack.write_into(&mut data).unwrap();
+        assert_eq!(len, req_len);
+        assert_eq!(data, expected);
     }
 }

@@ -181,7 +181,7 @@ mod tests {
         let mut data = [0; REQ_LEN];
         let sli = {
             let fci = Sli::builder().add_lost_macroblock(0x1234, 0x0987, 0x25);
-            PayloadFeedback::builder(fci)
+            PayloadFeedback::builder_owned(fci)
                 .sender_ssrc(0x98765432)
                 .media_ssrc(0x10fedcba)
         };
@@ -211,5 +211,25 @@ mod tests {
             })
         );
         assert_eq!(mb_iter.next(), None);
+    }
+
+    #[test]
+    fn sli_build_ref() {
+        const REQ_LEN: usize = PayloadFeedback::MIN_PACKET_LEN + 4;
+        let mut data = [0; REQ_LEN];
+        let fci = Sli::builder().add_lost_macroblock(0x1234, 0x0987, 0x25);
+        let sli = PayloadFeedback::builder(&fci)
+            .sender_ssrc(0x98765432)
+            .media_ssrc(0x10fedcba);
+        assert_eq!(sli.calculate_size().unwrap(), REQ_LEN);
+        let len = sli.write_into(&mut data).unwrap();
+        assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [
+                0x82, 0xce, 0x00, 0x03, 0x98, 0x76, 0x54, 0x32, 0x10, 0xfe, 0xdc, 0xba, 0x91, 0xa2,
+                0x61, 0xe5
+            ]
+        );
     }
 }
