@@ -308,8 +308,8 @@ pub enum PacketBuilder<'a> {
     Rr(crate::receiver::ReceiverReportBuilder),
     Sdes(crate::sdes::SdesBuilder<'a>),
     Sr(crate::sender::SenderReportBuilder),
-    TransportFeedback(crate::feedback::TransportFeedbackBuilder),
-    PayloadFeedback(crate::feedback::PayloadFeedbackBuilder),
+    TransportFeedback(crate::feedback::TransportFeedbackBuilder<'a>),
+    PayloadFeedback(crate::feedback::PayloadFeedbackBuilder<'a>),
     Unknown(UnknownBuilder<'a>),
 }
 
@@ -493,12 +493,12 @@ impl_try_from!(
 );
 impl_try_from!(
     crate::feedback::TransportFeedback<'a>,
-    crate::feedback::TransportFeedbackBuilder,
+    crate::feedback::TransportFeedbackBuilder<'a>,
     TransportFeedback
 );
 impl_try_from!(
     crate::feedback::PayloadFeedback<'a>,
-    crate::feedback::PayloadFeedbackBuilder,
+    crate::feedback::PayloadFeedbackBuilder<'a>,
     PayloadFeedback
 );
 

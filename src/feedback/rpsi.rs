@@ -151,11 +151,42 @@ mod tests {
             let data = &[0xf0];
             let fci = Rpsi::builder()
                 .payload_type(96)
-                .native_data_owned(data.as_ref(), 4);
-            PayloadFeedback::builder(fci)
+                .native_data(data.as_ref(), 4);
+            PayloadFeedback::builder_owned(fci)
                 .sender_ssrc(0x98765432)
                 .media_ssrc(0x10fedcba)
         };
+        assert_eq!(rpsi.calculate_size().unwrap(), REQ_LEN);
+        let len = rpsi.write_into(&mut data).unwrap();
+        assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [
+                0x83, 0xce, 0x00, 0x03, 0x98, 0x76, 0x54, 0x32, 0x10, 0xfe, 0xdc, 0xba, 0x0c, 0x60,
+                0xf0, 0x00
+            ]
+        );
+
+        let fb = PayloadFeedback::parse(&data).unwrap();
+
+        assert_eq!(fb.sender_ssrc(), 0x98765432);
+        assert_eq!(fb.media_ssrc(), 0x10fedcba);
+        let rpsi = fb.parse_fci::<Rpsi>().unwrap();
+        assert_eq!(rpsi.payload_type(), 96);
+        assert_eq!(rpsi.bit_string(), ([0xf0].as_ref(), 4));
+    }
+
+    #[test]
+    fn rpsi_build_parse_ref() {
+        const REQ_LEN: usize = PayloadFeedback::MIN_PACKET_LEN + 4;
+        let mut data = [0; REQ_LEN];
+        let data_fci = &[0xf0];
+        let fci = Rpsi::builder()
+            .payload_type(96)
+            .native_data(data_fci.as_ref(), 4);
+        let rpsi = PayloadFeedback::builder(&fci)
+            .sender_ssrc(0x98765432)
+            .media_ssrc(0x10fedcba);
         assert_eq!(rpsi.calculate_size().unwrap(), REQ_LEN);
         let len = rpsi.write_into(&mut data).unwrap();
         assert_eq!(len, REQ_LEN);

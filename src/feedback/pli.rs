@@ -68,7 +68,7 @@ mod tests {
         let mut data = [0; REQ_LEN];
         let pli = {
             let fci = Pli::builder();
-            PayloadFeedback::builder(fci)
+            PayloadFeedback::builder_owned(fci)
                 .sender_ssrc(0x98765432)
                 .media_ssrc(0x10fedcba)
         };
@@ -88,6 +88,23 @@ mod tests {
     }
 
     #[test]
+    fn pli_build_ref() {
+        const REQ_LEN: usize = PayloadFeedback::MIN_PACKET_LEN;
+        let mut data = [0; REQ_LEN];
+        let fci = Pli::builder();
+        let pli = PayloadFeedback::builder(&fci)
+            .sender_ssrc(0x98765432)
+            .media_ssrc(0x10fedcba);
+        assert_eq!(pli.calculate_size().unwrap(), REQ_LEN);
+        let len = pli.write_into(&mut data).unwrap();
+        assert_eq!(len, REQ_LEN);
+        assert_eq!(
+            data,
+            [0x81, 0xce, 0x00, 0x02, 0x98, 0x76, 0x54, 0x32, 0x10, 0xfe, 0xdc, 0xba,]
+        );
+    }
+
+    #[test]
     fn pli_parse_wrong_packet() {
         let fb = TransportFeedback::parse(&[
             0x81, 0xcd, 0x00, 0x02, 0x98, 0x76, 0x54, 0x32, 0x10, 0xfe, 0xdc, 0xba,
@@ -103,12 +120,10 @@ mod tests {
     fn pli_build_wrong_packet_type() {
         const REQ_LEN: usize = TransportFeedback::MIN_PACKET_LEN;
         let mut data = [0; REQ_LEN];
-        let pli = {
-            let fci = Pli::builder();
-            TransportFeedback::builder(fci)
-                .sender_ssrc(0x98765432)
-                .media_ssrc(0x10fedcba)
-        };
+        let fci = Pli::builder();
+        let pli = TransportFeedback::builder(&fci)
+            .sender_ssrc(0x98765432)
+            .media_ssrc(0x10fedcba);
         assert!(matches!(
             pli.calculate_size(),
             Err(RtcpWriteError::FciWrongFeedbackPacketType)

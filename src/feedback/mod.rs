@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Borrow;
+
 use crate::{
     prelude::*,
     utils::{pad_to_4bytes, parser, writer},
@@ -77,12 +79,33 @@ impl<'a> RtcpPacketParser<'a> for TransportFeedback<'a> {
 }
 
 impl<'a> TransportFeedback<'a> {
-    pub fn builder(fci: impl FciBuilder<'static> + 'static) -> TransportFeedbackBuilder {
+    /// Constructs a [`TransportFeedbackBuilder`] which refers to the provided [`FciBuilder`].
+    ///
+    /// Use [`TransportFeedback::builder_owned`] to return the [`TransportFeedbackBuilder`]
+    /// from a function.
+    pub fn builder(fci: &'a dyn FciBuilder<'a>) -> TransportFeedbackBuilder<'a> {
         TransportFeedbackBuilder {
             padding: 0,
             sender_ssrc: 0,
             media_ssrc: 0,
-            fci: Box::new(fci),
+            fci: FciBuilderWrapper::Borrowed(fci),
+        }
+    }
+
+    /// Constructs a [`TransportFeedbackBuilder`] which owns the provided [`FciBuilder`].
+    ///
+    /// This allows returning it from a function.
+    ///
+    /// **Warning:** this causes the [`FciBuilder`] to be heap-allocated.
+    /// Use [`TransportFeedback::builder`] when possible.
+    pub fn builder_owned(
+        fci: impl FciBuilder<'static> + 'static,
+    ) -> TransportFeedbackBuilder<'static> {
+        TransportFeedbackBuilder {
+            padding: 0,
+            sender_ssrc: 0,
+            media_ssrc: 0,
+            fci: FciBuilderWrapper::Owned(Box::new(fci)),
         }
     }
 
@@ -112,14 +135,14 @@ impl<'a> TransportFeedback<'a> {
 /// TransportFeedback packet builder
 #[derive(Debug)]
 #[must_use = "The builder must be built to be used"]
-pub struct TransportFeedbackBuilder {
+pub struct TransportFeedbackBuilder<'a> {
     padding: u8,
     sender_ssrc: u32,
     media_ssrc: u32,
-    fci: Box<dyn FciBuilder<'static>>,
+    fci: FciBuilderWrapper<'a>,
 }
 
-impl TransportFeedbackBuilder {
+impl<'a> TransportFeedbackBuilder<'a> {
     pub fn sender_ssrc(mut self, sender_ssrc: u32) -> Self {
         self.sender_ssrc = sender_ssrc;
         self
@@ -169,7 +192,7 @@ fn fb_write_into<T: RtcpPacket>(
     end
 }
 
-impl RtcpPacketWriter for TransportFeedbackBuilder {
+impl<'a> RtcpPacketWriter for TransportFeedbackBuilder<'a> {
     /// Calculates the size required to write this TransportFeedback packet.
     ///
     /// Returns an error if:
@@ -241,12 +264,32 @@ impl<'a> RtcpPacketParser<'a> for PayloadFeedback<'a> {
 }
 
 impl<'a> PayloadFeedback<'a> {
-    pub fn builder(fci: impl FciBuilder<'static> + 'static) -> PayloadFeedbackBuilder {
+    /// Constructs a [`PayloadFeedbackBuilder`] which refers to the provided [`FciBuilder`].
+    ///
+    /// Use [`PayloadFeedback::builder_owned`] to return the [`PayloadFeedbackBuilder`] from a function.
+    pub fn builder(fci: &'a dyn FciBuilder<'a>) -> PayloadFeedbackBuilder<'a> {
         PayloadFeedbackBuilder {
             padding: 0,
             sender_ssrc: 0,
             media_ssrc: 0,
-            fci: Box::new(fci),
+            fci: FciBuilderWrapper::Borrowed(fci),
+        }
+    }
+
+    /// Constructs a [`PayloadFeedbackBuilder`] which owns the provided [`FciBuilder`].
+    ///
+    /// This allows returning it from a function.
+    ///
+    /// **Warning:** this causes the [`FciBuilder`] to be heap-allocated.
+    /// Use [`PayloadFeedback::builder`] when possible.
+    pub fn builder_owned(
+        fci: impl FciBuilder<'static> + 'static,
+    ) -> PayloadFeedbackBuilder<'static> {
+        PayloadFeedbackBuilder {
+            padding: 0,
+            sender_ssrc: 0,
+            media_ssrc: 0,
+            fci: FciBuilderWrapper::Owned(Box::new(fci)),
         }
     }
 
@@ -276,14 +319,14 @@ impl<'a> PayloadFeedback<'a> {
 /// TransportFeedback packet builder
 #[derive(Debug)]
 #[must_use = "The builder must be built to be used"]
-pub struct PayloadFeedbackBuilder {
+pub struct PayloadFeedbackBuilder<'a> {
     padding: u8,
     sender_ssrc: u32,
     media_ssrc: u32,
-    fci: Box<dyn FciBuilder<'static>>,
+    fci: FciBuilderWrapper<'a>,
 }
 
-impl PayloadFeedbackBuilder {
+impl<'a> PayloadFeedbackBuilder<'a> {
     pub fn sender_ssrc(mut self, sender_ssrc: u32) -> Self {
         self.sender_ssrc = sender_ssrc;
         self
@@ -301,7 +344,7 @@ impl PayloadFeedbackBuilder {
     }
 }
 
-impl RtcpPacketWriter for PayloadFeedbackBuilder {
+impl<'a> RtcpPacketWriter for PayloadFeedbackBuilder<'a> {
     /// Calculates the size required to write this PayloadFeedback packet.
     ///
     /// Returns an error if:
@@ -355,6 +398,52 @@ pub trait FciParser<'a>: Sized {
 
     /// Parse the provided FCI data
     fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError>;
+}
+
+/// Stack or heap allocated [`FciBuilder`] wrapper.
+///
+/// This wrapper allows borrowing or owning an [`FciBuilder`] without
+/// propagating the concrete type of the [`FciBuilder`] to types such as
+/// [`PayloadFeedbackBuilder`] or [`TransportFeedback`]. This is needed for
+/// these types to be included in collections such as [`crate::CompoundBuilder`].
+///
+/// `Cow` from `std` would not be suitable here because it would require
+/// declaring the `B` type parameter as an implementer of `ToOwned`,
+/// which is not object-safe.
+#[derive(Debug)]
+enum FciBuilderWrapper<'a> {
+    Borrowed(&'a dyn FciBuilder<'a>),
+    // Note: using `'a` and not `'static` here to help with the implementations
+    // of `deref()` and `as_ref()`. This enum is private and the `Owned` variant
+    // can only be constructed from `PayloadFeedbackBuilder::builder_owned` &
+    // `TransportFeedback::builder_owned` which constrain the `FciBuilder` to be `'static`.
+    Owned(Box<dyn FciBuilder<'a>>),
+}
+
+impl<'a, T: FciBuilder<'a>> From<&'a T> for FciBuilderWrapper<'a> {
+    fn from(value: &'a T) -> Self {
+        FciBuilderWrapper::Borrowed(value)
+    }
+}
+
+impl<'a> std::convert::AsRef<dyn FciBuilder<'a> + 'a> for FciBuilderWrapper<'a> {
+    fn as_ref(&self) -> &(dyn FciBuilder<'a> + 'a) {
+        match self {
+            FciBuilderWrapper::Borrowed(this) => *this,
+            FciBuilderWrapper::Owned(this) => this.borrow(),
+        }
+    }
+}
+
+impl<'a> std::ops::Deref for FciBuilderWrapper<'a> {
+    type Target = dyn FciBuilder<'a> + 'a;
+
+    fn deref(&self) -> &(dyn FciBuilder<'a> + 'a) {
+        match self {
+            FciBuilderWrapper::Borrowed(this) => *this,
+            FciBuilderWrapper::Owned(this) => this.borrow(),
+        }
+    }
 }
 
 pub trait FciBuilder<'a>: RtcpPacketWriter {
