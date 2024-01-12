@@ -42,40 +42,49 @@ impl<'a> RtcpPacketParser<'a> for SenderReport<'a> {
 impl<'a> SenderReport<'a> {
     const MAX_REPORTS: u8 = Self::MAX_COUNT;
 
+    /// The (optional) padding used by this [`SenderReport`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The number of reports contained in this packet
     pub fn n_reports(&self) -> u8 {
         self.count()
     }
 
+    /// The SSRC of the entity providing the report
     pub fn ssrc(&self) -> u32 {
         parser::parse_ssrc(self.data)
     }
 
+    /// The 32.32 fixed point NTP timestamp sampled at the same time as the RTP timestamp
     pub fn ntp_timestamp(&self) -> u64 {
         u64_from_be_bytes(&self.data[8..16])
     }
 
+    /// The RTP timestamp for this SSRC sampled at the same time as the NTP timestamp
     pub fn rtp_timestamp(&self) -> u32 {
         u32_from_be_bytes(&self.data[16..20])
     }
 
+    /// The number of packets that this sender has sent
     pub fn packet_count(&self) -> u32 {
         u32_from_be_bytes(&self.data[20..24])
     }
 
+    /// The number of octets (bytes) that this sender has sent
     pub fn octet_count(&self) -> u32 {
         u32_from_be_bytes(&self.data[24..28])
     }
 
+    /// Iterator of report blocks in this [`SenderReport`]
     pub fn report_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
         self.data[Self::MIN_PACKET_LEN..Self::MIN_PACKET_LEN + (self.n_reports() as usize * 24)]
             .chunks_exact(24)
             .map(|b| ReportBlock::parse(b).unwrap())
     }
 
+    /// Create a new [`SenderReportBuilder`]
     pub fn builder(ssrc: u32) -> SenderReportBuilder {
         SenderReportBuilder::new(ssrc)
     }

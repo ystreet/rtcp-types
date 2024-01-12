@@ -42,24 +42,29 @@ impl<'a> RtcpPacketParser<'a> for ReceiverReport<'a> {
 impl<'a> ReceiverReport<'a> {
     const MAX_REPORTS: u8 = Self::MAX_COUNT;
 
+    /// The (optional) padding used by this [`ReceiverReport`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The number of reports contained in this packet
     pub fn n_reports(&self) -> u8 {
         self.count()
     }
 
+    /// The SSRC of the entity providing the report
     pub fn ssrc(&self) -> u32 {
         parser::parse_ssrc(self.data)
     }
 
+    /// Iterator of report blocks in this [`ReceiverReport`]
     pub fn report_blocks(&self) -> impl Iterator<Item = ReportBlock<'a>> + '_ {
         self.data[Self::MIN_PACKET_LEN..Self::MIN_PACKET_LEN + (self.n_reports() as usize * 24)]
             .chunks_exact(24)
             .map(|b| ReportBlock::parse(b).unwrap())
     }
 
+    /// Create a new [`ReportBlockBuilder`]
     pub fn builder(ssrc: u32) -> ReceiverReportBuilder {
         ReceiverReportBuilder::new(ssrc)
     }

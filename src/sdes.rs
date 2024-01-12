@@ -46,19 +46,23 @@ impl<'a> RtcpPacketParser<'a> for Sdes<'a> {
 }
 
 impl<'a> Sdes<'a> {
+    /// The (optional) padding used by this [`Sdes`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The chunks contained in this SDES
     pub fn chunks(&'a self) -> impl Iterator<Item = &'a SdesChunk<'a>> {
         self.chunks.iter()
     }
 
+    /// Create a new [`SdesBuilder`]
     pub fn builder() -> SdesBuilder<'a> {
         SdesBuilder::default()
     }
 }
 
+/// A SDES chunk containing a single SSRC with possibly multiple SDES items
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SdesChunk<'a> {
     ssrc: u32,
@@ -113,24 +117,29 @@ impl<'a> SdesChunk<'a> {
         Ok((ret, offset))
     }
 
+    /// The SSRC that this chunk describes
     pub fn ssrc(&self) -> u32 {
         self.ssrc
     }
 
+    /// The length of this chunk
     pub fn length(&self) -> usize {
         let len = Self::MIN_LEN + self.items.iter().fold(0, |acc, item| acc + item.length());
         pad_to_4bytes(len)
     }
 
+    /// The items in this chunk
     pub fn items(&'a self) -> impl Iterator<Item = &'a SdesItem<'a>> {
         self.items.iter()
     }
 
+    /// Create a new [`SdesItemBuilder`]
     pub fn builder(ssrc: u32) -> SdesChunkBuilder<'a> {
         SdesChunkBuilder::new(ssrc)
     }
 }
 
+/// An SDES item
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SdesItem<'a> {
     data: &'a [u8],
@@ -195,14 +204,17 @@ impl<'a> SdesItem<'a> {
         Ok((item, end))
     }
 
+    /// The type of this item
     pub fn type_(&self) -> u8 {
         self.data[0]
     }
 
+    /// The length of this item
     pub fn length(&self) -> usize {
         self.data[1] as usize
     }
 
+    /// The value of this item
     pub fn value(&self) -> &[u8] {
         if self.type_() == Self::PRIV {
             let offset = self.priv_value_offset() as usize;
@@ -212,6 +224,7 @@ impl<'a> SdesItem<'a> {
         }
     }
 
+    /// The value of this item as a string
     pub fn get_value_string(&self) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(self.value().into())
     }
@@ -247,6 +260,7 @@ impl<'a> SdesItem<'a> {
         &self.data[3..3 + self.priv_prefix_len() as usize]
     }
 
+    /// Create a new [`SdesItemBuilder`]
     pub fn builder(type_: u8, value: &'a str) -> SdesItemBuilder<'a> {
         SdesItemBuilder::new(type_, value)
     }
@@ -347,6 +361,7 @@ impl<'a> SdesChunkBuilder<'a> {
         }
     }
 
+    /// Add an item to this chunk
     pub fn add_item(mut self, item: SdesItemBuilder<'a>) -> Self {
         self.items.push(item);
         self
@@ -416,6 +431,7 @@ impl<'a> SdesChunkBuilder<'a> {
     }
 }
 
+/// SDES item builder
 #[derive(Debug)]
 #[must_use = "The builder must be built to be used"]
 pub struct SdesItemBuilder<'a> {

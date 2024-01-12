@@ -14,6 +14,8 @@ pub mod pli;
 pub mod rpsi;
 pub mod sli;
 
+/// The type of feedback packet.  There is currently transport and payload values supported for
+/// feedback packets.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct FciFeedbackPacketType {
     transport: bool,
@@ -109,18 +111,27 @@ impl<'a> TransportFeedback<'a> {
         }
     }
 
+    /// The (optional) padding used by this [`TransportFeedback`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The SSRC of the sender sending this feedback
     pub fn sender_ssrc(&self) -> u32 {
         parser::parse_ssrc(self.data)
     }
 
+    /// The SSRC of the media this packet refers to.  May be unset (0) in some feedback types.
     pub fn media_ssrc(&self) -> u32 {
         parser::parse_ssrc(&self.data[4..])
     }
 
+    /// Parse the Feedback Control Information into a concrete type.
+    ///
+    /// Will fail if:
+    /// * The FCI does not support transport feedback,
+    /// * the feedback type does not match the FCI
+    /// * The FCI implementation fails to parse the contained data
     pub fn parse_fci<F: FciParser<'a>>(&self) -> Result<F, RtcpParseError> {
         if F::PACKET_TYPE & FciFeedbackPacketType::TRANSPORT == FciFeedbackPacketType::NONE {
             return Err(RtcpParseError::WrongImplementation);
@@ -143,11 +154,14 @@ pub struct TransportFeedbackBuilder<'a> {
 }
 
 impl<'a> TransportFeedbackBuilder<'a> {
+    /// Set the SSRC this feedback packet is being sent from
     pub fn sender_ssrc(mut self, sender_ssrc: u32) -> Self {
         self.sender_ssrc = sender_ssrc;
         self
     }
 
+    /// Set the SSRC this feedback packet is being directed towards.  May be 0 if the specific
+    /// feedback type allows.
     pub fn media_ssrc(mut self, media_ssrc: u32) -> Self {
         self.media_ssrc = media_ssrc;
         self
@@ -293,18 +307,27 @@ impl<'a> PayloadFeedback<'a> {
         }
     }
 
+    /// The (optional) padding used by this [`PayloadFeedback`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The SSRC of the sender sending this feedback
     pub fn sender_ssrc(&self) -> u32 {
         parser::parse_ssrc(self.data)
     }
 
+    /// The SSRC of the media this packet refers to.  May be unset (0) in some feedback types.
     pub fn media_ssrc(&self) -> u32 {
         parser::parse_ssrc(&self.data[4..])
     }
 
+    /// Parse the Feedback Control Information into a concrete type.
+    ///
+    /// Will fail if:
+    /// * The FCI does not support payload feedback,
+    /// * the feedback type does not match the FCI
+    /// * The FCI implementation fails to parse the contained data
     pub fn parse_fci<F: FciParser<'a>>(&self) -> Result<F, RtcpParseError> {
         if F::PACKET_TYPE & FciFeedbackPacketType::PAYLOAD == FciFeedbackPacketType::NONE {
             return Err(RtcpParseError::WrongImplementation);
@@ -327,11 +350,14 @@ pub struct PayloadFeedbackBuilder<'a> {
 }
 
 impl<'a> PayloadFeedbackBuilder<'a> {
+    /// Set the SSRC this feedback packet is being sent from
     pub fn sender_ssrc(mut self, sender_ssrc: u32) -> Self {
         self.sender_ssrc = sender_ssrc;
         self
     }
 
+    /// Set the SSRC this feedback packet is being directed towards.  May be 0 if the specific
+    /// feedback type allows.
     pub fn media_ssrc(mut self, media_ssrc: u32) -> Self {
         self.media_ssrc = media_ssrc;
         self
@@ -392,6 +418,7 @@ impl<'a> RtcpPacketWriter for PayloadFeedbackBuilder<'a> {
     }
 }
 
+/// Trait for parsing FCI data in [`TransportFeedback`] or [`PayloadFeedback`] packets
 pub trait FciParser<'a>: Sized {
     const PACKET_TYPE: FciFeedbackPacketType;
     const FCI_FORMAT: u8;
@@ -446,8 +473,11 @@ impl<'a> std::ops::Deref for FciBuilderWrapper<'a> {
     }
 }
 
+/// Trait for writing a particular FCI implementation with a [`TransportFeedbackBuilder`] or
+/// [`PayloadFeedbackBuilder`].
 pub trait FciBuilder<'a>: RtcpPacketWriter {
     /// The format field value to place in the RTCP header
     fn format(&self) -> u8;
+    /// The type of feedback packet this FCI data supports being placed in
     fn supports_feedback_type(&self) -> FciFeedbackPacketType;
 }

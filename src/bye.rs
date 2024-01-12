@@ -54,16 +54,19 @@ impl<'a> Bye<'a> {
     const MAX_SOURCES: u8 = Self::MAX_COUNT;
     const MAX_REASON_LEN: u8 = 0xff;
 
+    /// The (optional) padding used by this [`Bye`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The list of ssrcs that this [`Bye`] packet refers to
     pub fn ssrcs(&self) -> impl Iterator<Item = u32> + '_ {
         self.data[4..4 + self.count() as usize * 4]
             .chunks_exact(4)
             .map(u32_from_be_bytes)
     }
 
+    /// The (optional) reason for the [`Bye`] as raw data.  The reason should be an ASCII string.
     pub fn reason(&self) -> Option<&[u8]> {
         let offset = self.count() as usize * 4 + 4;
         let reason_aligned_len = self
@@ -78,10 +81,12 @@ impl<'a> Bye<'a> {
         Some(&self.data[offset + 1..end])
     }
 
+    /// The (optional) reason for the [`Bye`] as a string
     pub fn get_reason_string(&self) -> Option<Result<String, std::string::FromUtf8Error>> {
         self.reason().map(|r| String::from_utf8(r.into()))
     }
 
+    /// Create a new [`ByeBuilder`]
     pub fn builder() -> ByeBuilder<'a> {
         ByeBuilder::new()
     }

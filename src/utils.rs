@@ -23,6 +23,7 @@ pub(crate) const fn pad_to_4bytes(num: usize) -> usize {
     (num + 3) & !3
 }
 
+/// Parsing utility helpers
 pub mod parser {
     use crate::{RtcpPacket, RtcpParseError};
 
@@ -127,6 +128,7 @@ pub mod parser {
     }
 }
 
+/// Writing utility helpers
 pub mod writer {
     use crate::{RtcpPacket, RtcpWriteError};
 

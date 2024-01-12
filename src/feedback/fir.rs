@@ -7,6 +7,7 @@ use crate::prelude::*;
 use crate::utils::u32_from_be_bytes;
 use crate::{RtcpParseError, RtcpWriteError};
 
+/// An entry in a Full Intra Refresh
 #[derive(Debug, PartialEq, Eq)]
 pub struct FirEntry {
     ssrc: u32,
@@ -18,10 +19,12 @@ impl FirEntry {
         Self { ssrc, sequence }
     }
 
+    /// The SSRC for this FIR
     pub fn ssrc(&self) -> u32 {
         self.ssrc
     }
 
+    /// The sequence count of the request. Intended for deduplication.
     pub fn sequence(&self) -> u8 {
         self.sequence
     }
@@ -63,6 +66,7 @@ impl<'a> Fir<'a> {
         FirParserEntryIter { parser: self, i: 0 }
     }
 
+    /// Create a new [`FirBuilder`]
     pub fn builder() -> FirBuilder {
         FirBuilder::default()
     }
@@ -83,12 +87,14 @@ impl<'a> FciParser<'a> for Fir<'a> {
     }
 }
 
+/// Builder for a Full Intra Refresh packet
 #[derive(Debug, Default)]
 pub struct FirBuilder {
     ssrc_seq: HashMap<u32, u8>,
 }
 
 impl FirBuilder {
+    /// Add an SSRC to this FIR packet.  An existing SSRC will have their sequence number updated.
     pub fn add_ssrc(mut self, ssrc: u32, sequence: u8) -> Self {
         self.ssrc_seq
             .entry(ssrc)

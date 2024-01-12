@@ -6,6 +6,8 @@ use crate::{
     RtcpPacket, RtcpParseError, RtcpWriteError,
 };
 
+/// A (currently) unknown RTCP packet type.  Can also be used as a way to parse a custom RTCP packet
+/// type.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Unknown<'a> {
     data: &'a [u8],
@@ -54,10 +56,13 @@ impl<'a> RtcpPacketParser<'a> for Unknown<'a> {
 }
 
 impl<'a> Unknown<'a> {
+    /// The data of this RTCP packet
     pub fn data(&self) -> &[u8] {
         self.data
     }
 
+    /// Try to parse this unknown RTCP packet as a different RTCP packet.  Can be used with an
+    /// external implementation of [`RtcpPacket`] to parse a custom RTCP packet.
     pub fn try_as<P>(&'a self) -> Result<P, RtcpParseError>
     where
         P: RtcpPacket,
@@ -66,11 +71,14 @@ impl<'a> Unknown<'a> {
         TryFrom::try_from(self)
     }
 
+    /// The builder for an [`Unknown`] RTCP packet.  The data does not include the 4 byte RTCP
+    /// header.
     pub fn builder(type_: u8, data: &'a [u8]) -> UnknownBuilder<'a> {
         UnknownBuilder::new(type_, data)
     }
 }
 
+/// Unknown RTCP packet builder
 #[derive(Debug)]
 #[must_use = "The builder must be built to be used"]
 pub struct UnknownBuilder<'a> {
@@ -81,6 +89,8 @@ pub struct UnknownBuilder<'a> {
 }
 
 impl<'a> UnknownBuilder<'a> {
+    /// Create a new builder for an [`Unknown`] RTCP packet.  The data does not include the 4 byte RTCP
+    /// header.
     pub fn new(type_: u8, data: &'a [u8]) -> UnknownBuilder<'a> {
         UnknownBuilder {
             padding: 0,
@@ -90,11 +100,14 @@ impl<'a> UnknownBuilder<'a> {
         }
     }
 
+    /// Sets the number of padding bytes to use for this Unknown packet
     pub fn padding(mut self, padding: u8) -> Self {
         self.padding = padding;
         self
     }
 
+    /// Set the count (or possibly type) field in the RTCP header.  The exact interpretation of
+    /// this value is RTCP packet specific.
     pub fn count(mut self, count: u8) -> Self {
         self.count = count;
         self
@@ -150,6 +163,8 @@ impl<'a> RtcpPacketWriter for UnknownBuilder<'a> {
     }
 }
 
+/// A (closed) enum of all currently known RTCP packet types.  The Unknown variant can be used to
+/// parse a custom RTCP packet.
 #[derive(Debug)]
 pub enum Packet<'a> {
     App(crate::App<'a>),
@@ -217,6 +232,7 @@ impl<'a> RtcpPacketParser<'a> for Packet<'a> {
 }
 
 impl<'a> Packet<'a> {
+    /// Try parsing this [`Packet`] as a particular [`RtcpPacket`] implementation.
     pub fn try_as<P>(&'a self) -> Result<P, RtcpParseError>
     where
         P: RtcpPacket,
@@ -226,6 +242,7 @@ impl<'a> Packet<'a> {
     }
 }
 
+/// A compound RTCP packet consisting of multiple RTCP packets one after the other
 #[derive(Debug)]
 pub struct Compound<'a> {
     data: &'a [u8],
@@ -234,6 +251,9 @@ pub struct Compound<'a> {
 }
 
 impl<'a> Compound<'a> {
+    /// Parse data into a [`Compound`] RTCP packet.
+    ///
+    /// This will validate that the length of each individual RTCP packet is valid upfront.
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         let mut offset = 0;
         let mut packet_length;
@@ -271,6 +291,7 @@ impl<'a> Compound<'a> {
         })
     }
 
+    /// Create a new [`CompoundBuilder`]
     pub fn builder() -> CompoundBuilder<'a> {
         CompoundBuilder::default()
     }
@@ -300,6 +321,7 @@ impl<'a> Iterator for Compound<'a> {
     }
 }
 
+/// A builder for a RTCP packet
 #[derive(Debug)]
 #[must_use = "The builder must be built to be used"]
 pub enum PacketBuilder<'a> {
@@ -357,6 +379,7 @@ impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
     }
 }
 
+/// A builder for a [`Compound`] RTCP packet
 #[derive(Default, Debug)]
 #[must_use = "The builder must be built to be used"]
 pub struct CompoundBuilder<'a> {
@@ -364,6 +387,7 @@ pub struct CompoundBuilder<'a> {
 }
 
 impl<'a> CompoundBuilder<'a> {
+    /// Add a packet to the compound rtcp packet
     pub fn add_packet(mut self, packet: impl RtcpPacketWriter + 'a) -> Self {
         self.packets.push(Box::new(packet));
         self

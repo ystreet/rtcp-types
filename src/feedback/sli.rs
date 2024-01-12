@@ -3,12 +3,14 @@
 use crate::feedback::FciFeedbackPacketType;
 use crate::{prelude::*, RtcpParseError, RtcpWriteError};
 
+/// Slice Loss Information
 #[derive(Debug)]
 pub struct Sli<'a> {
     data: &'a [u8],
 }
 
 impl<'a> Sli<'a> {
+    /// The macro blocks that have been lost
     pub fn lost_macroblocks(&self) -> impl Iterator<Item = MacroBlockEntry> + '_ {
         MacroBlockIter {
             data: self.data,
@@ -16,6 +18,7 @@ impl<'a> Sli<'a> {
         }
     }
 
+    /// Create a new [`SliBuilder`]
     pub fn builder() -> SliBuilder {
         SliBuilder { lost_mbs: vec![] }
     }
@@ -59,6 +62,7 @@ impl<'a> Iterator for MacroBlockIter<'a> {
     }
 }
 
+/// A macro block entry
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct MacroBlockEntry {
     start: u16,
@@ -89,12 +93,14 @@ impl MacroBlockEntry {
     }
 }
 
+/// Builder for Slice Loss Information
 #[derive(Debug)]
 pub struct SliBuilder {
     lost_mbs: Vec<MacroBlockEntry>,
 }
 
 impl SliBuilder {
+    /// Add a lost macro block to the SLI
     pub fn add_lost_macroblock(
         mut self,
         start_macroblock: u16,

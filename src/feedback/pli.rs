@@ -30,6 +30,7 @@ impl<'a> FciParser<'a> for Pli<'a> {
     }
 }
 
+/// Builder for Picture Loss Information
 #[derive(Debug)]
 pub struct PliBuilder {}
 

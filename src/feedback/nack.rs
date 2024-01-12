@@ -6,6 +6,7 @@ use crate::feedback::FciFeedbackPacketType;
 use crate::{prelude::*, utils::u16_from_be_bytes};
 use crate::{RtcpParseError, RtcpWriteError};
 
+/// An iterator over a parsed list of Negative Acknowledgements
 pub struct NackParserEntryIter<'a> {
     parser: &'a Nack<'a>,
     i: usize,
@@ -71,6 +72,7 @@ impl<'a> Nack<'a> {
         }
     }
 
+    /// Create a new [`NackBuilder`]
     pub fn builder() -> NackBuilder {
         NackBuilder::default()
     }
@@ -85,7 +87,7 @@ impl<'a> FciParser<'a> for Nack<'a> {
     }
 }
 
-pub struct NackBuilderEntryIter<I: Iterator<Item = u16>> {
+struct NackBuilderEntryIter<I: Iterator<Item = u16>> {
     i: usize,
     base_entry: Option<u16>,
     seq_iter: I,
@@ -138,12 +140,14 @@ impl<I: Iterator<Item = u16>> std::iter::Iterator for NackBuilderEntryIter<I> {
     }
 }
 
+/// A builder for [`Nack`]
 #[derive(Debug, Default)]
 pub struct NackBuilder {
     rtp_seq: BTreeSet<u16>,
 }
 
 impl NackBuilder {
+    /// Add a RTP sequence number as negatively acknowledged
     pub fn add_rtp_sequence(mut self, rtp_sequence: u16) -> Self {
         self.rtp_seq.insert(rtp_sequence);
         self
