@@ -34,18 +34,23 @@ impl<'a> App<'a> {
     const SUBTYPE_MASK: u8 = Self::MAX_COUNT;
     pub const NAME_LEN: usize = 4;
 
+    /// The (optional) padding used by this [`App`] packet
     pub fn padding(&self) -> Option<u8> {
         parser::parse_padding(self.data)
     }
 
+    /// The SSRC this [`App`] packet refers to
     pub fn ssrc(&self) -> u32 {
         parser::parse_ssrc(self.data)
     }
 
+    /// The `name` for this [`App`] packet.  The `name` should be a sequence of 4 ASCII
+    /// characters.
     pub fn name(&self) -> [u8; App::NAME_LEN] {
         self.data[8..8 + Self::NAME_LEN].try_into().unwrap()
     }
 
+    /// The `name` for this [`App`] as a string.
     pub fn get_name_string(&self) -> Result<String, std::string::FromUtf8Error> {
         // name is fixed length potentially zero terminated
         String::from_utf8(Vec::from_iter(self.name().iter().map_while(|&b| {
@@ -57,6 +62,7 @@ impl<'a> App<'a> {
         })))
     }
 
+    /// The application specific data
     pub fn data(&self) -> &[u8] {
         &self.data[12..self.data.len() - self.padding().unwrap_or(0) as usize]
     }
@@ -97,11 +103,13 @@ impl<'a> AppBuilder<'a> {
         self
     }
 
+    /// The subtype to use for this [`App`] packet
     pub fn subtype(mut self, subtype: u8) -> Self {
         self.subtype = subtype;
         self
     }
 
+    /// The data to use for this [`App`] packet
     pub fn data(mut self, data: &'a [u8]) -> Self {
         self.data = data;
         self

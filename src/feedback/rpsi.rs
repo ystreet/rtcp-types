@@ -6,20 +6,25 @@ use crate::feedback::FciFeedbackPacketType;
 use crate::utils::pad_to_4bytes;
 use crate::{prelude::*, RtcpParseError, RtcpWriteError};
 
+/// Reference Picture Selection Indication information
 #[derive(Debug)]
 pub struct Rpsi<'a> {
     data: &'a [u8],
 }
 
 impl<'a> Rpsi<'a> {
+    /// Create a new [`RpsiBuilder`]
     pub fn builder() -> RpsiBuilder<'a> {
         RpsiBuilder::default()
     }
 
+    /// The payload type this RPSI references
     pub fn payload_type(&self) -> u8 {
         self.data[1] & 0x7f
     }
 
+    /// The codec specific bit string, that this RPSI contains.
+    /// Returns that bit string data and how many bits to remove from the last byte
     pub fn bit_string(&self) -> (&[u8], usize) {
         let padding_bytes = self.padding_bytes();
         let padding_bits = self.data[0] as usize - padding_bytes * 8;
@@ -54,6 +59,7 @@ impl<'a> FciParser<'a> for Rpsi<'a> {
     }
 }
 
+/// Reference Picture Selection Indication builder
 #[derive(Debug, Default)]
 pub struct RpsiBuilder<'a> {
     payload_type: u8,
@@ -62,11 +68,14 @@ pub struct RpsiBuilder<'a> {
 }
 
 impl<'a> RpsiBuilder<'a> {
+    /// Set the payload type that this RPSI should reference
     pub fn payload_type(mut self, payload_type: u8) -> Self {
         self.payload_type = payload_type;
         self
     }
 
+    /// Set the codec specific bit string for thie RPSI along with how many bits in the last byte
+    /// must be ignored.
     pub fn native_data(mut self, data: impl Into<Cow<'a, [u8]>>, bit_overrun: u8) -> Self {
         self.native_bit_string = data.into();
         self.native_bit_overrun = bit_overrun;

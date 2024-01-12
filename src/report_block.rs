@@ -2,6 +2,8 @@
 
 use crate::{utils::u32_from_be_bytes, RtcpParseError, RtcpWriteError};
 
+/// A report block as found in a [`SenderReport`](crate::SenderReport) or a
+/// [`ReceiverReport`](crate::ReceiverReport) for a received SSRC
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReportBlock<'a> {
     data: &'a [u8; ReportBlock::EXPECTED_SIZE],
@@ -10,6 +12,7 @@ pub struct ReportBlock<'a> {
 impl<'a> ReportBlock<'a> {
     pub const EXPECTED_SIZE: usize = 24;
 
+    /// Parse data into a [`ReportBlock`].
     pub fn parse(data: &'a [u8]) -> Result<Self, RtcpParseError> {
         if data.len() < Self::EXPECTED_SIZE {
             return Err(RtcpParseError::Truncated {
@@ -28,34 +31,42 @@ impl<'a> ReportBlock<'a> {
         })
     }
 
+    /// The SSRC that this report describes
     pub fn ssrc(&self) -> u32 {
         u32_from_be_bytes(&self.data[0..4])
     }
 
+    /// The fractional part (out of 256) of packets that have been lost
     pub fn fraction_lost(&self) -> u8 {
         self.data[4]
     }
 
+    /// Total count of packets that have been lost.  This is a 24-bit value.
     pub fn cumulative_lost(&self) -> u32 {
         u32_from_be_bytes(&self.data[4..8]) & 0xffffff
     }
 
+    /// Extended sequence number
     pub fn extended_sequence_number(&self) -> u32 {
         u32_from_be_bytes(&self.data[8..12])
     }
 
+    /// The interarrival jitter of this receiver
     pub fn interarrival_jitter(&self) -> u32 {
         u32_from_be_bytes(&self.data[12..16])
     }
 
+    /// The NTP 16.16 fixed point time that a sender report was last received
     pub fn last_sender_report_timestamp(&self) -> u32 {
         u32_from_be_bytes(&self.data[16..20])
     }
 
+    /// 16.16 fixed point duration since the last sender report was received
     pub fn delay_since_last_sender_report_timestamp(&self) -> u32 {
         u32_from_be_bytes(&self.data[20..24])
     }
 
+    /// Create a new [`ReportBlockBuilder`]
     pub fn builder(ssrc: u32) -> ReportBlockBuilder {
         ReportBlockBuilder::new(ssrc)
     }
@@ -87,31 +98,37 @@ impl ReportBlockBuilder {
         }
     }
 
+    /// The fraction (out of 256) of packets lost
     pub fn fraction_lost(mut self, fraction_lost: u8) -> Self {
         self.fraction_lost = fraction_lost;
         self
     }
 
+    /// The cumulative count of packets lost.  Value must be limited to the sie of a 24-bit value.
     pub fn cumulative_lost(mut self, cumulative_lost: u32) -> Self {
         self.cumulative_lost = cumulative_lost;
         self
     }
 
+    /// The extended sequence number
     pub fn extended_sequence_number(mut self, extended_sequence_number: u32) -> Self {
         self.extended_sequence_number = extended_sequence_number;
         self
     }
 
+    /// The inter arrival jitter
     pub fn interarrival_jitter(mut self, interarrival_jitter: u32) -> Self {
         self.interarrival_jitter = interarrival_jitter;
         self
     }
 
+    /// The NTP 16.16 fixed point time of the last sender report
     pub fn last_sender_report_timestamp(mut self, last_sender_report_timestamp: u32) -> Self {
         self.last_sender_report_timestamp = last_sender_report_timestamp;
         self
     }
 
+    /// The NTP 16.16 fixed point duration since the last sender report
     pub fn delay_since_last_sender_report_timestamp(
         mut self,
         delay_since_last_sender_report_timestamp: u32,
