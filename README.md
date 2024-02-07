@@ -1,5 +1,5 @@
-[![crates.io](https://img.shields.io/crates/v/rtcp-types.svg)](https://crates.io/crates/librice)
-[![docs.rs](https://docs.rs/rtcp-types/badge.svg)](https://docs.rs/librice)
+[![crates.io](https://img.shields.io/crates/v/rtcp-types.svg)](https://crates.io/crates/rtcp-types)
+[![docs.rs](https://docs.rs/rtcp-types/badge.svg)](https://docs.rs/rtcp-types)
 
 # rtcp-types
 
