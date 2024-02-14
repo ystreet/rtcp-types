@@ -9,6 +9,7 @@ keywords = ["RTP", "RTCP"]
 categories = ["network-programming", "encoding", "multimedia", "parsing", "multimedia::encoding"]
 documentation = "https://docs.rs/rtcp-types"
 repository = "https://github.com/ystreet/rtcp-types"
+rust-version = '1.57.0'
 
 [dependencies]
 thiserror = "1"
