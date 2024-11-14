@@ -267,6 +267,7 @@ mod report_block;
 mod sdes;
 mod sender;
 pub mod utils;
+mod xr;
 
 pub use app::{App, AppBuilder};
 pub use bye::{Bye, ByeBuilder};
@@ -284,10 +285,24 @@ pub use receiver::{ReceiverReport, ReceiverReportBuilder};
 pub use report_block::{ReportBlock, ReportBlockBuilder};
 pub use sdes::{Sdes, SdesBuilder, SdesChunk, SdesChunkBuilder, SdesItem, SdesItemBuilder};
 pub use sender::{SenderReport, SenderReportBuilder};
+pub use xr::dlrr::{
+    DelaySinceLastReceiverReport, DelaySinceLastReceiverReportBlock,
+    DelaySinceLastReceiverReportBlockBuilder, DelaySinceLastReceiverReportBuilder,
+};
+pub use xr::duplicate_rle::{DuplicateRle, DuplicateRleBuilder};
+pub use xr::loss_rle::{LossRle, LossRleBuilder};
+pub use xr::packet_receipt_time::{PacketReceiptTimes, PacketReceiptTimesBuilder};
+pub use xr::receiver_reference_time::{ReceiverReferenceTime, ReceiverReferenceTimeBuilder};
+pub use xr::rle::RleChunk;
+pub use xr::{
+    Xr, XrBlock, XrBlockBuilder, XrBlockBuilderExt, XrBlockParser, XrBlockParserExt,
+    XrBlockStaticType, XrBuilder,
+};
 
 pub mod prelude {
     pub use super::{
         FciBuilder, FciParser, RtcpPacket, RtcpPacketParser, RtcpPacketParserExt, RtcpPacketWriter,
-        RtcpPacketWriterExt,
+        RtcpPacketWriterExt, XrBlockBuilder, XrBlockBuilderExt, XrBlockParser, XrBlockParserExt,
+        XrBlockStaticType,
     };
 }
