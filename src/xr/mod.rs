@@ -114,6 +114,7 @@ impl XrBuilder {
         self
     }
 
+    /// Add an [`XrBlock`] to this [`Xr`] packet.
     pub fn add_block(mut self, block: impl XrBlockBuilder<'static> + 'static) -> XrBuilder {
         self.blocks.push(Box::new(block));
         self
@@ -227,6 +228,7 @@ pub trait XrBlockParser<'a>: Sized {
     fn header_data(&self) -> [u8; 4];
 }
 
+/// Extension trait providing helpers for parsing a [`XrBlock`].
 pub trait XrBlockParserExt<'a>: XrBlockParser<'a> {
     /// The indicator for the particular XR block being parsed
     fn block_type(&self) -> u8 {
@@ -258,7 +260,9 @@ pub trait XrBlockBuilder<'a>: RtcpPacketWriter {
     fn type_specific_byte(&self) -> u8;
 }
 
+/// Extension trait providing helpers for writing a [`XrBlock`] to a sequence of bytes.
 pub trait XrBlockBuilderExt<'a>: XrBlockBuilder<'a> {
+    /// Write the 4 byte [`XrBlock`] header into `buf` using the provided values.
     fn write_header_unchecked(&self, buf: &mut [u8], block_type: u8, block_word_len: u16) -> usize {
         buf[0] = block_type;
         buf[1] = self.type_specific_byte();

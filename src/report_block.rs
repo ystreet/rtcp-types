@@ -3,13 +3,15 @@
 use crate::{utils::u32_from_be_bytes, RtcpParseError, RtcpWriteError};
 
 /// A report block as found in a [`SenderReport`](crate::SenderReport) or a
-/// [`ReceiverReport`](crate::ReceiverReport) for a received SSRC
+/// [`ReceiverReport`](crate::ReceiverReport) for a received SSRC.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReportBlock<'a> {
     data: &'a [u8; ReportBlock::EXPECTED_SIZE],
 }
 
 impl<'a> ReportBlock<'a> {
+    /// The expected size of a [`ReportBlock`] as stored in a [`SenderReport`](crate::SenderReport)
+    /// or a [`ReceiverReport`](crate::ReceiverReport).
     pub const EXPECTED_SIZE: usize = 24;
 
     /// Parse data into a [`ReportBlock`].
@@ -86,7 +88,7 @@ pub struct ReportBlockBuilder {
 }
 
 impl ReportBlockBuilder {
-    pub fn new(ssrc: u32) -> Self {
+    fn new(ssrc: u32) -> Self {
         ReportBlockBuilder {
             ssrc,
             fraction_lost: 0,

@@ -77,6 +77,7 @@ impl<'a> LossRle<'a> {
     }
 }
 
+/// Builder for a [`LossRle`]
 #[derive(Debug, Default)]
 pub struct LossRleBuilder {
     rle: RleBuilder,

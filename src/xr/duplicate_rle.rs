@@ -75,6 +75,7 @@ impl<'a> DuplicateRle<'a> {
     }
 }
 
+/// Builder for a [`DuplicateRle`]
 #[derive(Debug, Default)]
 pub struct DuplicateRleBuilder {
     rle: RleBuilder,

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+//! Utilites for handling RTCP packets
+
 #[track_caller]
 #[inline(always)]
 pub(crate) fn u16_from_be_bytes(bytes: &[u8]) -> u16 {
