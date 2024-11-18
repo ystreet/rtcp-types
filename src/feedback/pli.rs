@@ -10,6 +10,7 @@ pub struct Pli<'a> {
 }
 
 impl<'a> Pli<'a> {
+    /// Construct a builder for a [`Pli`] packet.
     pub fn builder() -> PliBuilder {
         PliBuilder {}
     }

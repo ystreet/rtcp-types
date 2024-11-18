@@ -82,6 +82,10 @@ impl<'a> RpsiBuilder<'a> {
         self
     }
 
+    /// Set the codec specific bit string for thie RPSI along with how many bits in the last byte
+    /// must be ignored.
+    ///
+    /// This is the owned variant that can leave the calling scope.
     pub fn native_data_owned(
         self,
         data: impl Into<Cow<'a, [u8]>>,

@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+
+//! # rtcp-type
+//!
+//! A crate for parsing and writing RTCP packets as specified in [RFC 3550] and related extensions.
+//!
+//! [RFC 3550]: https://tools.ietf.org/html/rfc3550
 
 /// A Trait defining RTCP Packet structural data.
 pub trait RtcpPacket {
+    /// RTCP protocol version.  The default version of 2 is fine and should not need to be
+    /// overriden.
     const VERSION: u8 = 2;
+    /// A maximum count that is commonly used across multiple RTCP packet types.  A value larger
+    /// than this will produce a parsing error.
     const MAX_COUNT: u8 = 0x1f;
+    /// The minimum size of a particular RTCP packet.  A packet shorter than this value will
+    /// produce a parsing error.
     const MIN_PACKET_LEN: usize;
+    /// The RTCP type of the particular RTCP packet.
     const PACKET_TYPE: u8;
 }
 
@@ -26,23 +40,30 @@ pub trait RtcpPacketParser<'a>: RtcpPacket + Sized {
     fn header_data(&self) -> [u8; 4];
 }
 
+/// Extension trait providing helper functions for particular pieces of data in the 4 byte RTCP
+/// header provided by [`RtcpPacketParser`].
 pub trait RtcpPacketParserExt<'a>: RtcpPacketParser<'a> {
+    /// The RTCP protocol version.
     fn version(&self) -> u8 {
         utils::parser::parse_version(&self.header_data())
     }
 
+    /// The RTCP payload type.
     fn type_(&self) -> u8 {
         utils::parser::parse_packet_type(&self.header_data())
     }
 
+    /// The sub type of the RTCP packet.  (Same value as [`count`](Self::count)).
     fn subtype(&self) -> u8 {
         utils::parser::parse_count(&self.header_data())
     }
 
+    /// The advertsied length (in bytes) of the RTCP packet.
     fn length(&self) -> usize {
         utils::parser::parse_length(&self.header_data())
     }
 
+    /// The number of records in this RTCP packet.  (Same value as [`subtype`](Self::subtype)).
     fn count(&self) -> u8 {
         utils::parser::parse_count(&self.header_data())
     }
@@ -76,6 +97,7 @@ pub trait RtcpPacketWriter: std::fmt::Debug {
     fn get_padding(&self) -> Option<u8>;
 }
 
+/// Extension providing helpders for writing a [`RtcpPacket`].
 pub trait RtcpPacketWriterExt: RtcpPacketWriter {
     /// Writes the Custom packet into `buf`.
     ///
@@ -155,7 +177,12 @@ pub enum RtcpParseError {
 
     /// RTCP Packet type mismatch.
     #[error("RTCP Packet type mismatch. Actual: {actual}, requested {requested}")]
-    PacketTypeMismatch { actual: u8, requested: u8 },
+    PacketTypeMismatch {
+        /// The packet type encountered.
+        actual: u8,
+        /// The requested packet type.
+        requested: u8,
+    },
 }
 
 /// Errors produced when writing a packet
@@ -168,11 +195,19 @@ pub enum RtcpWriteError {
 
     /// The provided padding is not a multiple of 4.
     #[error("The provided padding {padding} is not a multiple of 4")]
-    InvalidPadding { padding: u8 },
+    InvalidPadding {
+        /// The padding value encountered.
+        padding: u8,
+    },
 
     /// App Subtype was out of range.
     #[error("App Subtype {subtype} was out of range (max: {max})")]
-    AppSubtypeOutOfRange { subtype: u8, max: u8 },
+    AppSubtypeOutOfRange {
+        /// The subtype value encountered.
+        subtype: u8,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// APP Packet Name is invalid.  Expecting a sequence of four ASCII characters.
     #[error("APP Packet Name is invalid.  Expecting a sequence of four ASCII characters.")]
@@ -184,35 +219,75 @@ pub enum RtcpWriteError {
 
     /// Too many Sources specified.
     #[error("Too many Sources specified. Number of Sources: {count}, max: {max}")]
-    TooManySources { count: usize, max: u8 },
+    TooManySources {
+        /// The count of sources encountered.
+        count: usize,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// Reason length was too large.
     #[error("Reason length {len} was too large (max {max})")]
-    ReasonLenTooLarge { len: usize, max: u8 },
+    ReasonLenTooLarge {
+        /// The length value encountered.
+        len: usize,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// Cumulative Lost was too large.
     #[error("Cumulative Lost {value} was too large (max {max})")]
-    CumulativeLostTooLarge { value: u32, max: u32 },
+    CumulativeLostTooLarge {
+        /// The value encountered.
+        value: u32,
+        /// The maximum allowable value.
+        max: u32,
+    },
 
     /// Too many Report Blocks specified (max 31).
     #[error("Too many Report Blocks specified. Number of Report Blocks: {count} max: {max}")]
-    TooManyReportBlocks { count: usize, max: u8 },
+    TooManyReportBlocks {
+        /// The number of report blocks encountered.
+        count: usize,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// Too many SDES Chunks specified.
     #[error("Too many SDES Chunks specified. Number of SDES Chunks: {count}, max: {max}")]
-    TooManySdesChunks { count: usize, max: u8 },
+    TooManySdesChunks {
+        /// The number of SDES chunks encountered.
+        count: usize,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// SDES Value length was too large.
     #[error("SDES Value length {len} was too large (max {max})")]
-    SdesValueTooLarge { len: usize, max: u8 },
+    SdesValueTooLarge {
+        /// The length of the SDES value that was encountered.
+        len: usize,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// The SDES PRIV prefix was too large.
     #[error("The SDES PRIV prefix length {len} too large (max {max})")]
-    SdesPrivPrefixTooLarge { len: usize, max: u8 },
+    SdesPrivPrefixTooLarge {
+        /// The length of the SDES PRIV prefix that was encountered.
+        len: usize,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// Unknown Count was out of range.
     #[error("Unknown Count {count} was out of range (max: {max})")]
-    CountOutOfRange { count: u8, max: u8 },
+    CountOutOfRange {
+        /// The count value that was encountered.
+        count: u8,
+        /// The maximum allowable value.
+        max: u8,
+    },
 
     /// Non-last Compound packet padding defined.
     #[error("Non-last Compound packet padding defined")]
@@ -301,6 +376,7 @@ pub use xr::{
     XrBlockStaticType, XrBuilder,
 };
 
+/// Prelude module for defined/implementable traits
 pub mod prelude {
     pub use super::{
         FciBuilder, FciParser, RtcpPacket, RtcpPacketParser, RtcpPacketParserExt, RtcpPacketWriter,

@@ -32,6 +32,7 @@ impl<'a> RtcpPacketParser<'a> for App<'a> {
 
 impl<'a> App<'a> {
     const SUBTYPE_MASK: u8 = Self::MAX_COUNT;
+    /// The length of the name of an [`App`] packet.
     pub const NAME_LEN: usize = 4;
 
     /// The (optional) padding used by this [`App`] packet

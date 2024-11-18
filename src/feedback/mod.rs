@@ -23,14 +23,17 @@ pub struct FciFeedbackPacketType {
 }
 
 impl FciFeedbackPacketType {
+    /// No supported feedback type for the FCI data.
     pub const NONE: Self = Self {
         transport: false,
         payload: false,
     };
+    /// [`TransportFeedback`] is supported for the FCI data.
     pub const TRANSPORT: Self = Self {
         transport: true,
         payload: false,
     };
+    /// [`PayloadFeedback`] is supported for the FCI data.
     pub const PAYLOAD: Self = Self {
         transport: false,
         payload: true,
@@ -420,7 +423,9 @@ impl<'a> RtcpPacketWriter for PayloadFeedbackBuilder<'a> {
 
 /// Trait for parsing FCI data in [`TransportFeedback`] or [`PayloadFeedback`] packets
 pub trait FciParser<'a>: Sized {
+    /// The supported feedback packet/s that the FCI data may be encountered within.
     const PACKET_TYPE: FciFeedbackPacketType;
+    /// The type format of the FCI.
     const FCI_FORMAT: u8;
 
     /// Parse the provided FCI data

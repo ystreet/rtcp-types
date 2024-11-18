@@ -133,7 +133,7 @@ impl<'a> SdesChunk<'a> {
         self.items.iter()
     }
 
-    /// Create a new [`SdesItemBuilder`]
+    /// Create a new [`SdesChunkBuilder`]
     pub fn builder(ssrc: u32) -> SdesChunkBuilder<'a> {
         SdesChunkBuilder::new(ssrc)
     }
@@ -148,13 +148,21 @@ pub struct SdesItem<'a> {
 impl<'a> SdesItem<'a> {
     const MIN_LEN: usize = 4;
     const VALUE_MAX_LEN: u8 = 255;
+    /// The CNAME item in a SDES.
     pub const CNAME: u8 = 0x01;
+    /// The NAME item in a SDES.
     pub const NAME: u8 = 0x02;
+    /// The EMAIL item in a SDES.
     pub const EMAIL: u8 = 0x03;
+    /// The PHONE item in a SDES.
     pub const PHONE: u8 = 0x04;
+    /// The LOC item in a SDES.
     pub const LOC: u8 = 0x05;
+    /// The TOOL item in a SDES.
     pub const TOOL: u8 = 0x06;
+    /// The NOTE item in a SDES.
     pub const NOTE: u8 = 0x07;
+    /// The PRIV item in a SDES.
     pub const PRIV: u8 = 0x08;
 
     fn parse(data: &'a [u8]) -> Result<(Self, usize), RtcpParseError> {
@@ -353,7 +361,7 @@ pub struct SdesChunkBuilder<'a> {
 }
 
 impl<'a> SdesChunkBuilder<'a> {
-    pub fn new(ssrc: u32) -> Self {
+    fn new(ssrc: u32) -> Self {
         SdesChunkBuilder {
             ssrc,
             items: Vec::new(),
@@ -441,7 +449,7 @@ pub struct SdesItemBuilder<'a> {
 }
 
 impl<'a> SdesItemBuilder<'a> {
-    pub fn new(type_: u8, value: impl Into<Cow<'a, str>>) -> SdesItemBuilder<'a> {
+    fn new(type_: u8, value: impl Into<Cow<'a, str>>) -> SdesItemBuilder<'a> {
         SdesItemBuilder {
             type_,
             prefix: Default::default(),

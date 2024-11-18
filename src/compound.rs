@@ -167,18 +167,28 @@ impl<'a> RtcpPacketWriter for UnknownBuilder<'a> {
 /// parse a custom RTCP packet.
 #[derive(Debug)]
 pub enum Packet<'a> {
+    /// An [`App`](crate::App) packet.
     App(crate::App<'a>),
+    /// A [`Bye`](crate::Bye) packet.
     Bye(crate::Bye<'a>),
+    /// A [`ReceiverReport`](crate::ReceiverReport) packet.
     Rr(crate::ReceiverReport<'a>),
+    /// A [`Sdes`](crate::Sdes) packet.
     Sdes(crate::Sdes<'a>),
+    /// A [`SenderReport`](crate::SenderReport) packet.
     Sr(crate::SenderReport<'a>),
+    /// A [`TransportFeedback`](crate::TransportFeedback) packet.
     TransportFeedback(crate::TransportFeedback<'a>),
+    /// A [`PayloadFeedback`](crate::PayloadFeedback) packet.
     PayloadFeedback(crate::PayloadFeedback<'a>),
+    /// An [`XR`](crate::Xr) packet.
     Xr(crate::Xr<'a>),
+    /// An [`Unknown`](crate::Unknown) packet.
     Unknown(Unknown<'a>),
 }
 
 impl<'a> Packet<'a> {
+    /// Whether the packet is of an unknown type.
     pub fn is_unknown(&self) -> bool {
         matches!(self, Packet::Unknown(_))
     }
@@ -328,14 +338,23 @@ impl<'a> Iterator for Compound<'a> {
 #[derive(Debug)]
 #[must_use = "The builder must be built to be used"]
 pub enum PacketBuilder<'a> {
+    /// An [`App`](crate::AppBuilder) packet.
     App(crate::app::AppBuilder<'a>),
+    /// A [`Bye`](crate::ByeBuilder) packet.
     Bye(crate::bye::ByeBuilder<'a>),
+    /// A [`ReceiverReport`](crate::ReceiverReportBuilder) packet.
     Rr(crate::receiver::ReceiverReportBuilder),
+    /// A [`Sdes`](crate::SdesBuilder) packet.
     Sdes(crate::sdes::SdesBuilder<'a>),
+    /// A [`SenderReport`](crate::SenderReportBuilder) packet.
     Sr(crate::sender::SenderReportBuilder),
+    /// A [`TransportFeedback`](crate::TransportFeedbackBuilder) packet.
     TransportFeedback(crate::feedback::TransportFeedbackBuilder<'a>),
+    /// A [`PayloadFeedback`](crate::PayloadFeedbackBuilder) packet.
     PayloadFeedback(crate::feedback::PayloadFeedbackBuilder<'a>),
+    /// An [`XR`](crate::XrBuilder) packet.
     Xr(crate::xr::XrBuilder),
+    /// An [`Unknown`](crate::UnknownBuilder) packet.
     Unknown(UnknownBuilder<'a>),
 }
 

@@ -58,6 +58,7 @@ impl<'a> DelaySinceLastReceiverReport<'a> {
     }
 }
 
+/// A report block as stored in a [`DelaySinceLastReceiverReport`]
 #[derive(Debug, Default)]
 pub struct DelaySinceLastReceiverReportBlock {
     ssrc: u32,
@@ -89,11 +90,13 @@ impl DelaySinceLastReceiverReportBlock {
         self.delay_since_last_receiver_report_timestamp
     }
 
+    /// Construct a builder for a [`DelaySinceLastReceiverReportBlock`]
     pub fn builder() -> DelaySinceLastReceiverReportBlockBuilder {
         DelaySinceLastReceiverReportBlockBuilder::default()
     }
 }
 
+/// Builder for a [`DelaySinceLastReceiverReportBlock`]
 #[derive(Debug, Default)]
 pub struct DelaySinceLastReceiverReportBlockBuilder {
     dlrr: DelaySinceLastReceiverReportBlock,
