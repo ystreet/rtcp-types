@@ -6,6 +6,7 @@ use crate::xr::{XrBlockBuilder, XrBlockParser, XrBlockStaticType};
 use crate::{RtcpParseError, RtcpWriteError};
 
 /// Run-Length-Encoded packet duplicate information as specified in RFC 3611
+#[derive(Debug)]
 pub struct DuplicateRle<'a> {
     rle: Rle<'a>,
 }

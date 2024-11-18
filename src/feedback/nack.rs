@@ -58,6 +58,7 @@ impl<'a> std::iter::Iterator for NackParserEntryIter<'a> {
 }
 
 /// Generic NACK FCI information as specified in RFC 4585
+#[derive(Debug)]
 pub struct Nack<'a> {
     data: &'a [u8],
 }

@@ -56,6 +56,7 @@ impl<'a> std::iter::Iterator for FirParserEntryIter<'a> {
 }
 
 /// FIR (Full Intra Refresh) information as specified in RFC 5104
+#[derive(Debug)]
 pub struct Fir<'a> {
     data: &'a [u8],
 }
