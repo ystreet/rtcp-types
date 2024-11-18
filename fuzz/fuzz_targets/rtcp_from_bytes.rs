@@ -15,6 +15,18 @@ fuzz_target!(|data: &[u8]| {
                         let _ = block.parse_into::<rtcp_types::ReceiverReferenceTime>();
                     }
                 }
+                Ok(rtcp_types::Packet::TransportFeedback(fb)) => {
+                    let _ = fb.parse_fci::<rtcp_types::Nack>();
+                    let _ = fb.parse_fci::<rtcp_types::Pli>();
+                    let _ = fb.parse_fci::<rtcp_types::Rpsi>();
+                    let _ = fb.parse_fci::<rtcp_types::Sli>();
+                }
+                Ok(rtcp_types::Packet::PayloadFeedback(fb)) => {
+                    let _ = fb.parse_fci::<rtcp_types::Nack>();
+                    let _ = fb.parse_fci::<rtcp_types::Pli>();
+                    let _ = fb.parse_fci::<rtcp_types::Rpsi>();
+                    let _ = fb.parse_fci::<rtcp_types::Sli>();
+                }
                 _ => (),
             }
         }
