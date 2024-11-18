@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![deny(missing_debug_implementations)]
+
 /// A Trait defining RTCP Packet structural data.
 pub trait RtcpPacket {
     const VERSION: u8 = 2;

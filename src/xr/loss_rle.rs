@@ -8,6 +8,7 @@ use crate::{RtcpParseError, RtcpWriteError};
 use super::XrBlockStaticType;
 
 /// Run-Length-Encoded packet loss information as specified in RFC 3611
+#[derive(Debug)]
 pub struct LossRle<'a> {
     rle: Rle<'a>,
 }
