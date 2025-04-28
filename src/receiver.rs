@@ -12,7 +12,7 @@ pub struct ReceiverReport<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for ReceiverReport<'a> {
+impl RtcpPacket for ReceiverReport<'_> {
     const MIN_PACKET_LEN: usize = 8;
     const PACKET_TYPE: u8 = 201;
 }

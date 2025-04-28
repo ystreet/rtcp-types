@@ -13,7 +13,7 @@ pub struct DelaySinceLastReceiverReport<'a> {
     block: XrBlock<'a>,
 }
 
-impl<'a> XrBlockStaticType for DelaySinceLastReceiverReport<'a> {
+impl XrBlockStaticType for DelaySinceLastReceiverReport<'_> {
     const BLOCK_TYPE: u8 = 0x5;
 }
 
@@ -42,7 +42,7 @@ impl<'a> XrBlockParser<'a> for DelaySinceLastReceiverReport<'a> {
     }
 }
 
-impl<'a> DelaySinceLastReceiverReport<'a> {
+impl DelaySinceLastReceiverReport<'_> {
     /// An iterator over the report blocks [`DelaySinceLastReceiverReport`].
     pub fn block_iter(&self) -> impl Iterator<Item = DelaySinceLastReceiverReportBlock> + '_ {
         DelaySinceLastReceiverReportBlockIter {
@@ -143,7 +143,7 @@ struct DelaySinceLastReceiverReportBlockIter<'a> {
     data_offset: usize,
 }
 
-impl<'a> Iterator for DelaySinceLastReceiverReportBlockIter<'a> {
+impl Iterator for DelaySinceLastReceiverReportBlockIter<'_> {
     type Item = DelaySinceLastReceiverReportBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -171,7 +171,7 @@ impl DelaySinceLastReceiverReportBuilder {
     }
 }
 
-impl<'a> XrBlockBuilder<'a> for DelaySinceLastReceiverReportBuilder {
+impl XrBlockBuilder<'_> for DelaySinceLastReceiverReportBuilder {
     fn type_specific_byte(&self) -> u8 {
         0
     }

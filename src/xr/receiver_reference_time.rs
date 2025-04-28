@@ -11,7 +11,7 @@ pub struct ReceiverReferenceTime<'a> {
     data: &'a [u8],
 }
 
-impl<'a> XrBlockStaticType for ReceiverReferenceTime<'a> {
+impl XrBlockStaticType for ReceiverReferenceTime<'_> {
     const BLOCK_TYPE: u8 = 0x4;
 }
 
@@ -33,7 +33,7 @@ impl<'a> XrBlockParser<'a> for ReceiverReferenceTime<'a> {
     }
 }
 
-impl<'a> ReceiverReferenceTime<'a> {
+impl ReceiverReferenceTime<'_> {
     /// The 32.32 fixed point NTP timestamp sampled at the same time as the RTP timestamp
     pub fn ntp_timestamp(&self) -> u64 {
         u64_from_be_bytes(&self.data[4..12])
@@ -59,7 +59,7 @@ impl ReceiverReferenceTimeBuilder {
     }
 }
 
-impl<'a> XrBlockBuilder<'a> for ReceiverReferenceTimeBuilder {
+impl XrBlockBuilder<'_> for ReceiverReferenceTimeBuilder {
     fn type_specific_byte(&self) -> u8 {
         0
     }

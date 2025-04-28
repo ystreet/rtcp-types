@@ -9,7 +9,7 @@ pub struct Sli<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Sli<'a> {
+impl Sli<'_> {
     /// The macro blocks that have been lost
     pub fn lost_macroblocks(&self) -> impl Iterator<Item = MacroBlockEntry> + '_ {
         MacroBlockIter {
@@ -44,7 +44,7 @@ struct MacroBlockIter<'a> {
     i: usize,
 }
 
-impl<'a> Iterator for MacroBlockIter<'a> {
+impl Iterator for MacroBlockIter<'_> {
     type Item = MacroBlockEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -116,7 +116,7 @@ impl SliBuilder {
     }
 }
 
-impl<'a> FciBuilder<'a> for SliBuilder {
+impl FciBuilder<'_> for SliBuilder {
     fn format(&self) -> u8 {
         2
     }

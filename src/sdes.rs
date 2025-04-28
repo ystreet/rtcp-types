@@ -16,7 +16,7 @@ pub struct Sdes<'a> {
     chunks: Vec<SdesChunk<'a>>,
 }
 
-impl<'a> RtcpPacket for Sdes<'a> {
+impl RtcpPacket for Sdes<'_> {
     const MIN_PACKET_LEN: usize = 4;
     const PACKET_TYPE: u8 = 202;
 }
@@ -297,7 +297,7 @@ impl<'a> SdesBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for SdesBuilder<'a> {
+impl RtcpPacketWriter for SdesBuilder<'_> {
     /// Calculates the size required to write this App packet.
     ///
     /// Returns an error if:
@@ -471,7 +471,7 @@ impl<'a> SdesItemBuilder<'a> {
     ///
     /// * An Item presents an invalid size.
     fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
-        let value_len = self.value.as_bytes().len();
+        let value_len = self.value.len();
 
         if self.type_ == SdesItem::PRIV {
             // Note RFC 3550 p. 42 doesn't specify the encoding for the prefix "string".

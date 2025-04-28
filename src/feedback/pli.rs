@@ -9,7 +9,7 @@ pub struct Pli<'a> {
     _data: &'a [u8],
 }
 
-impl<'a> Pli<'a> {
+impl Pli<'_> {
     /// Construct a builder for a [`Pli`] packet.
     pub fn builder() -> PliBuilder {
         PliBuilder {}
@@ -35,7 +35,7 @@ impl<'a> FciParser<'a> for Pli<'a> {
 #[derive(Debug)]
 pub struct PliBuilder {}
 
-impl<'a> FciBuilder<'a> for PliBuilder {
+impl FciBuilder<'_> for PliBuilder {
     fn format(&self) -> u8 {
         1
     }

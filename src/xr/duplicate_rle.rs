@@ -11,7 +11,7 @@ pub struct DuplicateRle<'a> {
     rle: Rle<'a>,
 }
 
-impl<'a> XrBlockStaticType for DuplicateRle<'a> {
+impl XrBlockStaticType for DuplicateRle<'_> {
     const BLOCK_TYPE: u8 = 0x2;
 }
 
@@ -28,7 +28,7 @@ impl<'a> XrBlockParser<'a> for DuplicateRle<'a> {
     }
 }
 
-impl<'a> DuplicateRle<'a> {
+impl DuplicateRle<'_> {
     /// The amount of thinning applied to the sequence number space. Every 2^thinning sequence
     /// number has been reported
     pub fn thinning(&self) -> u8 {
@@ -116,7 +116,7 @@ impl DuplicateRleBuilder {
     }
 }
 
-impl<'a> XrBlockBuilder<'a> for DuplicateRleBuilder {
+impl XrBlockBuilder<'_> for DuplicateRleBuilder {
     fn type_specific_byte(&self) -> u8 {
         self.rle.type_specific_byte()
     }
