@@ -19,7 +19,7 @@ pub struct Xr<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for Xr<'a> {
+impl RtcpPacket for Xr<'_> {
     const MIN_PACKET_LEN: usize = 12;
     const PACKET_TYPE: u8 = 207;
 }

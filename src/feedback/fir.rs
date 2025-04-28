@@ -35,13 +35,13 @@ pub struct FirParserEntryIter<'a> {
     i: usize,
 }
 
-impl<'a> FirParserEntryIter<'a> {
+impl FirParserEntryIter<'_> {
     fn decode_entry(entry: &[u8]) -> FirEntry {
         FirEntry::new(u32_from_be_bytes(&entry[0..4]), entry[4])
     }
 }
 
-impl<'a> std::iter::Iterator for FirParserEntryIter<'a> {
+impl std::iter::Iterator for FirParserEntryIter<'_> {
     type Item = FirEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -61,7 +61,7 @@ pub struct Fir<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Fir<'a> {
+impl Fir<'_> {
     /// The list of RTP SSRCs that are requesting a Full Intra Refresh.
     pub fn entries(&self) -> impl Iterator<Item = FirEntry> + '_ {
         FirParserEntryIter { parser: self, i: 0 }
@@ -107,7 +107,7 @@ impl FirBuilder {
     }
 }
 
-impl<'a> FciBuilder<'a> for FirBuilder {
+impl FciBuilder<'_> for FirBuilder {
     fn format(&self) -> u8 {
         Fir::FCI_FORMAT
     }

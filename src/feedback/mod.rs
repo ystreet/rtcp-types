@@ -66,7 +66,7 @@ pub struct TransportFeedback<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for TransportFeedback<'a> {
+impl RtcpPacket for TransportFeedback<'_> {
     const MIN_PACKET_LEN: usize = 12;
     const PACKET_TYPE: u8 = 205;
 }
@@ -156,7 +156,7 @@ pub struct TransportFeedbackBuilder<'a> {
     fci: FciBuilderWrapper<'a>,
 }
 
-impl<'a> TransportFeedbackBuilder<'a> {
+impl TransportFeedbackBuilder<'_> {
     /// Set the SSRC this feedback packet is being sent from
     pub fn sender_ssrc(mut self, sender_ssrc: u32) -> Self {
         self.sender_ssrc = sender_ssrc;
@@ -209,7 +209,7 @@ fn fb_write_into<T: RtcpPacket>(
     end
 }
 
-impl<'a> RtcpPacketWriter for TransportFeedbackBuilder<'a> {
+impl RtcpPacketWriter for TransportFeedbackBuilder<'_> {
     /// Calculates the size required to write this TransportFeedback packet.
     ///
     /// Returns an error if:
@@ -263,7 +263,7 @@ pub struct PayloadFeedback<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for PayloadFeedback<'a> {
+impl RtcpPacket for PayloadFeedback<'_> {
     const MIN_PACKET_LEN: usize = 12;
     const PACKET_TYPE: u8 = 206;
 }
@@ -352,7 +352,7 @@ pub struct PayloadFeedbackBuilder<'a> {
     fci: FciBuilderWrapper<'a>,
 }
 
-impl<'a> PayloadFeedbackBuilder<'a> {
+impl PayloadFeedbackBuilder<'_> {
     /// Set the SSRC this feedback packet is being sent from
     pub fn sender_ssrc(mut self, sender_ssrc: u32) -> Self {
         self.sender_ssrc = sender_ssrc;
@@ -373,7 +373,7 @@ impl<'a> PayloadFeedbackBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for PayloadFeedbackBuilder<'a> {
+impl RtcpPacketWriter for PayloadFeedbackBuilder<'_> {
     /// Calculates the size required to write this PayloadFeedback packet.
     ///
     /// Returns an error if:

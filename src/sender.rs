@@ -12,7 +12,7 @@ pub struct SenderReport<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for SenderReport<'a> {
+impl RtcpPacket for SenderReport<'_> {
     const MIN_PACKET_LEN: usize = 28;
     const PACKET_TYPE: u8 = 200;
 }

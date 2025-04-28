@@ -12,7 +12,7 @@ pub struct App<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for App<'a> {
+impl RtcpPacket for App<'_> {
     const MIN_PACKET_LEN: usize = 12;
     const PACKET_TYPE: u8 = 204;
 }
@@ -117,7 +117,7 @@ impl<'a> AppBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for AppBuilder<'a> {
+impl RtcpPacketWriter for AppBuilder<'_> {
     /// Calculates the size required to write this App packet.
     ///
     /// Returns an error if:

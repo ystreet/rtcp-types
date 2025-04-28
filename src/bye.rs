@@ -14,7 +14,7 @@ pub struct Bye<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for Bye<'a> {
+impl RtcpPacket for Bye<'_> {
     const MIN_PACKET_LEN: usize = 4;
     const PACKET_TYPE: u8 = 203;
 }
@@ -138,7 +138,7 @@ impl<'a> ByeBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for ByeBuilder<'a> {
+impl RtcpPacketWriter for ByeBuilder<'_> {
     /// Calculates the size required to write this Bye packet.
     ///
     /// Returns an error if:
@@ -159,7 +159,7 @@ impl<'a> RtcpPacketWriter for ByeBuilder<'a> {
         let mut size = Bye::MIN_PACKET_LEN + 4 * self.sources.len() + self.padding as usize;
 
         if !self.reason.is_empty() {
-            let reason_len = self.reason.as_bytes().len();
+            let reason_len = self.reason.len();
             if reason_len > Bye::MAX_REASON_LEN as usize {
                 return Err(RtcpWriteError::ReasonLenTooLarge {
                     len: reason_len,

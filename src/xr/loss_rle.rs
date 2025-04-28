@@ -13,7 +13,7 @@ pub struct LossRle<'a> {
     rle: Rle<'a>,
 }
 
-impl<'a> XrBlockStaticType for LossRle<'a> {
+impl XrBlockStaticType for LossRle<'_> {
     const BLOCK_TYPE: u8 = 0x1;
 }
 
@@ -30,7 +30,7 @@ impl<'a> XrBlockParser<'a> for LossRle<'a> {
     }
 }
 
-impl<'a> LossRle<'a> {
+impl LossRle<'_> {
     /// The amount of thinning applied to the sequence number space. Every 2^thinning sequence
     /// number has been reported
     pub fn thinning(&self) -> u8 {
@@ -118,7 +118,7 @@ impl LossRleBuilder {
     }
 }
 
-impl<'a> XrBlockBuilder<'a> for LossRleBuilder {
+impl XrBlockBuilder<'_> for LossRleBuilder {
     fn type_specific_byte(&self) -> u8 {
         self.rle.type_specific_byte()
     }

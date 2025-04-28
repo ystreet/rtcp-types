@@ -13,7 +13,7 @@ pub struct PacketReceiptTimes<'a> {
     block: XrBlock<'a>,
 }
 
-impl<'a> XrBlockStaticType for PacketReceiptTimes<'a> {
+impl XrBlockStaticType for PacketReceiptTimes<'_> {
     const BLOCK_TYPE: u8 = 0x3;
 }
 
@@ -30,7 +30,7 @@ impl<'a> XrBlockParser<'a> for PacketReceiptTimes<'a> {
     }
 }
 
-impl<'a> PacketReceiptTimes<'a> {
+impl PacketReceiptTimes<'_> {
     /// The amount of thinning applied to the sequence number space. Every 2^thinning sequence
     /// number has been reported
     pub fn thinning(&self) -> u8 {
@@ -74,7 +74,7 @@ struct PacketReceiptTimesIter<'a> {
     data_offset: usize,
 }
 
-impl<'a> Iterator for PacketReceiptTimesIter<'a> {
+impl Iterator for PacketReceiptTimesIter<'_> {
     type Item = (u16, u32);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -138,7 +138,7 @@ impl PacketReceiptTimesBuilder {
     }
 }
 
-impl<'a> XrBlockBuilder<'a> for PacketReceiptTimesBuilder {
+impl XrBlockBuilder<'_> for PacketReceiptTimesBuilder {
     fn type_specific_byte(&self) -> u8 {
         self.thinning
     }

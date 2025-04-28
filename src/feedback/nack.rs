@@ -13,7 +13,7 @@ pub struct NackParserEntryIter<'a> {
     mask_i: usize,
 }
 
-impl<'a> NackParserEntryIter<'a> {
+impl NackParserEntryIter<'_> {
     fn decode_entry(entry: &[u8]) -> (u16, u16) {
         (
             u16_from_be_bytes(&entry[0..2]),
@@ -22,7 +22,7 @@ impl<'a> NackParserEntryIter<'a> {
     }
 }
 
-impl<'a> std::iter::Iterator for NackParserEntryIter<'a> {
+impl std::iter::Iterator for NackParserEntryIter<'_> {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -63,7 +63,7 @@ pub struct Nack<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Nack<'a> {
+impl Nack<'_> {
     /// The list of RTP sequence numbers that is being NACKed.
     pub fn entries(&self) -> impl Iterator<Item = u16> + '_ {
         NackParserEntryIter {
@@ -164,7 +164,7 @@ impl NackBuilder {
     }
 }
 
-impl<'a> FciBuilder<'a> for NackBuilder {
+impl FciBuilder<'_> for NackBuilder {
     fn format(&self) -> u8 {
         1
     }

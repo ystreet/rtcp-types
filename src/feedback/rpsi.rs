@@ -109,7 +109,7 @@ impl<'a> FciBuilder<'a> for RpsiBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for RpsiBuilder<'a> {
+impl RtcpPacketWriter for RpsiBuilder<'_> {
     fn calculate_size(&self) -> Result<usize, RtcpWriteError> {
         if self.payload_type > 127 {
             return Err(RtcpWriteError::PayloadTypeInvalid);

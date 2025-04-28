@@ -82,7 +82,7 @@ struct RleBlockIter<'a> {
     block_offset: usize,
 }
 
-impl<'a> Iterator for RleBlockIter<'a> {
+impl Iterator for RleBlockIter<'_> {
     type Item = RleChunk;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -102,7 +102,7 @@ pub struct RleSequenceIter<'a> {
     seq_offset: u16,
 }
 
-impl<'a> Iterator for RleSequenceIter<'a> {
+impl Iterator for RleSequenceIter<'_> {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -280,7 +280,7 @@ impl RleBuilder {
     }
 }
 
-impl<'a> XrBlockBuilder<'a> for RleBuilder {
+impl XrBlockBuilder<'_> for RleBuilder {
     fn type_specific_byte(&self) -> u8 {
         self.thinning & 0xf
     }

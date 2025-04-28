@@ -13,7 +13,7 @@ pub struct Unknown<'a> {
     data: &'a [u8],
 }
 
-impl<'a> RtcpPacket for Unknown<'a> {
+impl RtcpPacket for Unknown<'_> {
     const MIN_PACKET_LEN: usize = 4;
     const PACKET_TYPE: u8 = 255; // Not used
 }
@@ -114,7 +114,7 @@ impl<'a> UnknownBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for UnknownBuilder<'a> {
+impl RtcpPacketWriter for UnknownBuilder<'_> {
     /// Calculates the size required to write this Unknown packet.
     ///
     /// Returns an error if:
@@ -187,14 +187,14 @@ pub enum Packet<'a> {
     Unknown(Unknown<'a>),
 }
 
-impl<'a> Packet<'a> {
+impl Packet<'_> {
     /// Whether the packet is of an unknown type.
     pub fn is_unknown(&self) -> bool {
         matches!(self, Packet::Unknown(_))
     }
 }
 
-impl<'a> RtcpPacket for Packet<'a> {
+impl RtcpPacket for Packet<'_> {
     const MIN_PACKET_LEN: usize = 4;
     const PACKET_TYPE: u8 = 255; // Not used
 }
@@ -358,7 +358,7 @@ pub enum PacketBuilder<'a> {
     Unknown(UnknownBuilder<'a>),
 }
 
-impl<'a> RtcpPacketWriter for PacketBuilder<'a> {
+impl RtcpPacketWriter for PacketBuilder<'_> {
     fn get_padding(&self) -> Option<u8> {
         use PacketBuilder::*;
         match self {
@@ -420,7 +420,7 @@ impl<'a> CompoundBuilder<'a> {
     }
 }
 
-impl<'a> RtcpPacketWriter for CompoundBuilder<'a> {
+impl RtcpPacketWriter for CompoundBuilder<'_> {
     /// Calculates the size required to write this Receiver Report packet.
     ///
     /// Returns an error if:
