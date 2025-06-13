@@ -690,7 +690,7 @@ mod tests {
             + pad_to_4bytes(
                 2 + "cname".len()
                     + 2
-                    + "François".as_bytes().len()
+                    + "François".len()
                     + 3
                     + "priv-prefix".len()
                     + "priv-value".len(),
@@ -772,7 +772,7 @@ mod tests {
 
         const REQ_LEN: usize = Sdes::MIN_PACKET_LEN
             + SdesChunk::MIN_LEN
-            + pad_to_4bytes(2 + "cname".len() + 2 + "François".as_bytes().len())
+            + pad_to_4bytes(2 + "cname".len() + 2 + "François".len())
             + SdesChunk::MIN_LEN
             + pad_to_4bytes(2 + "user@host".len() + 2 + "+33678901234".len());
 
