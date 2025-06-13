@@ -76,7 +76,7 @@ impl<'a, T: RtcpPacketParser<'a>> RtcpPacketParserExt<'a> for T {}
 /// Note: this trait must remain [object-safe].
 ///
 /// [object-safe]: https://doc.rust-lang.org/reference/items/traits.html#object-safety
-pub trait RtcpPacketWriter: std::fmt::Debug {
+pub trait RtcpPacketWriter: std::fmt::Debug + Send + Sync {
     /// Calculates the size required to write this RTCP packet.
     ///
     /// Also performs validity checks.
