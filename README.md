@@ -17,5 +17,5 @@ rtcp-types is dual licensed under the:
 Any kinds of contributions are welcome as a pull request.
 
 Unless you explicitly state otherwise, any contribution intentionally
-submitted for inclusion in rtp-types by you shall be dual licensed under the MIT
+submitted for inclusion in rtcp-types by you shall be dual licensed under the MIT
 license and Apache 2.0 license as above, without any additional terms or conditions.
