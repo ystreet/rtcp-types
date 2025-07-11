@@ -120,6 +120,7 @@ impl<T: RtcpPacketWriter> RtcpPacketWriterExt for T {}
 
 /// Errors that can be produced when parsing a RTCP packet
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RtcpParseError {
     /// Unsupported version.  This implementation only deals with version 2.
     #[error("Unsupported version: {}.  This implementation only deals with version 2.", .0)]
@@ -187,6 +188,7 @@ pub enum RtcpParseError {
 
 /// Errors produced when writing a packet
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RtcpWriteError {
     /// Output buffer is not large enough to fit the resulting buffer.  The requested size is
     /// returned.
