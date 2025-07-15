@@ -279,12 +279,20 @@ impl<'a> Compound<'a> {
         }
 
         while offset < data.len() {
+            // This also checks that there is no undeclared padding at the end of the packet
             if data.len() < offset + Unknown::MIN_PACKET_LEN {
                 return Err(RtcpParseError::Truncated {
                     expected: offset + Unknown::MIN_PACKET_LEN,
                     actual: data.len(),
                 });
             }
+
+            let version = parse_version(data);
+            if parse_version(data) != 2 {
+                return Err(RtcpParseError::UnsupportedVersion(version));
+            }
+
+            let padding_bit = parse_padding_bit(&data[offset..]);
 
             packet_length = parse_length(&data[offset..]);
             if data.len() < offset + packet_length {
@@ -295,6 +303,11 @@ impl<'a> Compound<'a> {
             }
 
             offset += packet_length;
+
+            // Only the last RTCP packet in a compound packet is allowed to have padding
+            if offset < data.len() && padding_bit {
+                return Err(RtcpParseError::InvalidPadding);
+            }
         }
 
         Ok(Self {
@@ -726,6 +739,69 @@ mod tests {
                 actual: 8
             }
         );
+
+        assert!(compound.next().is_none());
+    }
+
+    #[test]
+    fn parse_rr_bye_wrong_version() {
+        let data = [
+            0x40, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0x40, 0xcb, 0x00, 0x00,
+        ];
+        let err = Compound::parse(&data).unwrap_err();
+        assert_eq!(err, RtcpParseError::UnsupportedVersion(1));
+    }
+
+    #[test]
+    fn parse_rr_bye_undeclared_padding() {
+        let data = [
+            0x80, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0x80, 0xcb, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let err = Compound::parse(&data).unwrap_err();
+        assert_eq!(
+            err,
+            RtcpParseError::Truncated {
+                expected: 16,
+                actual: 14
+            }
+        );
+    }
+
+    #[test]
+    fn parse_rr_bye_first_packet_padded() {
+        let data = [
+            0xa0, 0xc9, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x00, 0x00, 0x00, 0x04, 0x80, 0xcb,
+            0x00, 0x00,
+        ];
+        let err = Compound::parse(&data).unwrap_err();
+        assert_eq!(err, RtcpParseError::InvalidPadding);
+    }
+
+    #[test]
+    fn parse_rr_bye_padded() {
+        let data = [
+            0x80, 0xc9, 0x00, 0x01, 0x91, 0x82, 0x73, 0x64, 0xa0, 0xcb, 0x00, 0x01, 0x00, 0x00,
+            0x00, 0x04,
+        ];
+
+        let mut compound = Compound::parse(&data).unwrap();
+        let packet = compound.next().unwrap().unwrap();
+        matches!(packet, Packet::Rr(_));
+
+        let packet = compound.next().unwrap().unwrap();
+        matches!(packet, Packet::Bye(_));
+
+        assert!(compound.next().is_none());
+    }
+
+    #[test]
+    fn parse_rr_one_packet_padded() {
+        let data = [
+            0xa0, 0xc9, 0x00, 0x02, 0x91, 0x82, 0x73, 0x64, 0x00, 0x00, 0x00, 0x04,
+        ];
+        let mut compound = Compound::parse(&data).unwrap();
+        let packet = compound.next().unwrap().unwrap();
+        matches!(packet, Packet::Rr(_));
 
         assert!(compound.next().is_none());
     }
