@@ -20,12 +20,14 @@ fuzz_target!(|data: &[u8]| {
                     let _ = fb.parse_fci::<rtcp_types::Pli>();
                     let _ = fb.parse_fci::<rtcp_types::Rpsi>();
                     let _ = fb.parse_fci::<rtcp_types::Sli>();
+                    let _ = fb.parse_fci::<rtcp_types::Twcc>();
                 }
                 Ok(rtcp_types::Packet::PayloadFeedback(fb)) => {
                     let _ = fb.parse_fci::<rtcp_types::Nack>();
                     let _ = fb.parse_fci::<rtcp_types::Pli>();
                     let _ = fb.parse_fci::<rtcp_types::Rpsi>();
                     let _ = fb.parse_fci::<rtcp_types::Sli>();
+                    let _ = fb.parse_fci::<rtcp_types::Twcc>();
                 }
                 _ => (),
             }
