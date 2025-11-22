@@ -357,8 +357,8 @@ pub use feedback::pli::{Pli, PliBuilder};
 pub use feedback::rpsi::{Rpsi, RpsiBuilder};
 pub use feedback::sli::{Sli, SliBuilder};
 pub use feedback::{
-    FciBuilder, FciParser, PayloadFeedback, PayloadFeedbackBuilder, TransportFeedback,
-    TransportFeedbackBuilder,
+    FciBuilder, FciFeedbackPacketType, FciParser, PayloadFeedback, PayloadFeedbackBuilder,
+    TransportFeedback, TransportFeedbackBuilder,
 };
 pub use receiver::{ReceiverReport, ReceiverReportBuilder};
 pub use report_block::{ReportBlock, ReportBlockBuilder};
