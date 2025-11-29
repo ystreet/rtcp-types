@@ -184,6 +184,14 @@ pub enum RtcpParseError {
         /// The requested packet type.
         requested: u8,
     },
+
+    /// The TWCC packet contains fewer delta bytes than required by the packet status list
+    #[error("The TWCC packet contains fewer delta bytes than required by the packet status list")]
+    TwccDeltaTruncated,
+
+    /// The TWCC packet contains reserved status bits
+    #[error("The TWCC packet contains reserved status bits")]
+    TwccReservedPacketStatus,
 }
 
 /// Errors produced when writing a packet
@@ -318,6 +326,10 @@ pub enum RtcpWriteError {
     /// Number of FIR's will not fit within a single RTCP packet.
     #[error("The number of FIR entries will not fit inside a RTCP packet.")]
     TooManyFir,
+
+    /// reference time passed to TwccBuilder does not fit into 24 bits.
+    #[error("The TWCC reference time is too large.")]
+    TwccReferenceTimeTooLarge,
 }
 
 impl From<RtcpParseError> for RtcpWriteError {
@@ -332,7 +344,7 @@ impl From<RtcpParseError> for RtcpWriteError {
                     max: available,
                 }
             }
-            other => unreachable!("{other}"),
+            other => unreachable!("{}", other),
         }
     }
 }
@@ -356,6 +368,7 @@ pub use feedback::nack::{Nack, NackBuilder};
 pub use feedback::pli::{Pli, PliBuilder};
 pub use feedback::rpsi::{Rpsi, RpsiBuilder};
 pub use feedback::sli::{Sli, SliBuilder};
+pub use feedback::twcc::{Twcc, TwccBuilder, TwccPacketStatus, TWCC_MAX_REFERENCE_TIME};
 pub use feedback::{
     FciBuilder, FciFeedbackPacketType, FciParser, PayloadFeedback, PayloadFeedbackBuilder,
     TransportFeedback, TransportFeedbackBuilder,
