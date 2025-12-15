@@ -15,10 +15,10 @@ categories = [
 ]
 documentation = "https://docs.rs/rtcp-types"
 repository = "https://github.com/ystreet/rtcp-types"
-rust-version = '1.57.0'
+rust-version = '1.68.0'
 
 [dependencies]
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
 rand = "0.8"
